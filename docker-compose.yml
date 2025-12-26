@@ -1,0 +1,180 @@
+# ====================================
+# AVENLO CORE - DOCKER COMPOSE
+# Local Development Environment
+# ====================================
+
+version: '3.8'
+
+services:
+  # ====================================
+  # INFRASTRUCTURE
+  # ====================================
+  
+  redis:
+    image: redis:7-alpine
+    container_name: avenlo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - avenlo-network
+
+  mongodb:
+    image: mongo:7
+    container_name: avenlo-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: avenlo_dev_password
+      MONGO_INITDB_DATABASE: avenlo_core
+    volumes:
+      - mongodb-data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - avenlo-network
+
+  # ====================================
+  # SERVICES
+  # ====================================
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: avenlo-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      - MONGODB_DB_NAME=avenlo_core
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - avenlo-network
+
+  architect:
+    build:
+      context: .
+      dockerfile: services/architect/Dockerfile
+    container_name: avenlo-architect
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      - MONGODB_DB_NAME=avenlo_core
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_MODEL=${AI_MODEL:-gpt-4o}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - avenlo-network
+
+  pulse:
+    build:
+      context: .
+      dockerfile: services/pulse/Dockerfile
+    container_name: avenlo-pulse
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      - MONGODB_DB_NAME=avenlo_core
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - avenlo-network
+
+  ledger:
+    build:
+      context: .
+      dockerfile: services/ledger/Dockerfile
+    container_name: avenlo-ledger
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      - MONGODB_DB_NAME=avenlo_core
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - ROLE_STUDIO_LEAD=${ROLE_STUDIO_LEAD}
+      - ROLE_ACTIVE_DEV=${ROLE_ACTIVE_DEV}
+      - ROLE_CONTRIBUTOR=${ROLE_CONTRIBUTOR}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - avenlo-network
+
+volumes:
+  redis-data:
+  mongodb-data:
+
+networks:
+  avenlo-network:
+    driver: bridge

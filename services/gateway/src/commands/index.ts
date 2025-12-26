@@ -1,0 +1,43 @@
+// ====================================
+// AVENLO CORE - COMMAND LOADER
+// ====================================
+
+import { Collection, SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+import { createLogger } from '@avenlo/shared';
+
+// Import all commands
+import { projectCommand } from './project';
+import { vaultCommand } from './vault';
+import { dashboardCommand } from './dashboard';
+import { leaderboardCommand } from './leaderboard';
+import { profileCommand } from './profile';
+import { helpCommand } from './help';
+import { adminCommand } from './admin';
+
+const logger = createLogger('gateway-commands');
+
+export interface Command {
+  data: SlashCommandBuilder;
+  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+}
+
+const commands: Command[] = [
+  projectCommand,
+  vaultCommand,
+  dashboardCommand,
+  leaderboardCommand,
+  profileCommand,
+  helpCommand,
+  adminCommand,
+];
+
+export async function loadCommands(): Promise<Collection<string, Command>> {
+  const collection = new Collection<string, Command>();
+
+  for (const command of commands) {
+    collection.set(command.data.name, command);
+    logger.debug(`Loaded command: /${command.data.name}`);
+  }
+
+  return collection;
+}

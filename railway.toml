@@ -1,0 +1,16 @@
+# ====================================
+# AVENLO CORE - RAILWAY CONFIGURATION
+# ====================================
+
+# This file tells Railway how to build and deploy
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "services/gateway/Dockerfile"
+
+[deploy]
+startCommand = "node services/gateway/dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
