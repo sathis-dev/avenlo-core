@@ -208,10 +208,13 @@ app.get('/api/health', (req, res) => {
 app.get('/auth/discord', passport.authenticate('discord'));
 
 app.get('/auth/discord/callback',
-  passport.authenticate('discord', {
-    failureRedirect: '/login?error=unauthorized',
-    successRedirect: '/',
-  })
+  passport.authenticate('discord', { failureRedirect: '/login?error=unauthorized' }),
+  (req, res) => {
+    // Set user data in session
+    console.log('✅ OAuth callback successful, user:', (req.user as any)?.username);
+    // Redirect to dashboard after successful login
+    res.redirect('/dashboard');
+  }
 );
 
 app.post('/auth/logout', (req, res) => {
@@ -241,6 +244,15 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
 // ====================================
 // API ROUTES
 // ====================================
+
+// Check if user is authenticated (no auth required)
+app.get('/api/auth/check', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({ authenticated: true, user: req.user });
+  } else {
+    res.json({ authenticated: false });
+  }
+});
 
 // Get current user
 app.get('/api/auth/me', requireAuth, (req, res) => {
