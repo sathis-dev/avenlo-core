@@ -758,15 +758,25 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
     await ticket.save();
 
     // Send welcome embed to ticket channel
+    // Member sees limited buttons, staff/management see full controls
     const welcomeEmbed = buildTicketWelcomeEmbed(ticket, member, description, categoryInfo);
-    const actionRow = buildTicketActionButtons(ticket);
-    const infoRow = buildTicketInfoButtons(ticket);
-    const adminRow = buildTicketAdminButtons(ticket);
+    
+    // Row 1: Member-accessible buttons (Close, Add User)
+    const memberRow = buildMemberButtons(ticket);
+    
+    // Row 2: Staff-only buttons (Claim, Resolve, Escalate, Transfer)
+    const staffRow = buildStaffActionButtons(ticket);
+    
+    // Row 3: Management-only buttons (Priority, Rename, Transcript, Delete)
+    const adminRow = buildManagementButtons(ticket);
 
     await ticketChannel.send({
-      content: `${member} Welcome to your private support channel!`,
+      content: `${member} Welcome to your private support channel!\n\n` +
+        `> 🔒 **Your buttons:** Close Ticket, Add User\n` +
+        `> 👨‍💼 **Staff buttons:** Claim, Resolve, Escalate, Transfer\n` +
+        `> 👑 **Management buttons:** Priority, Rename, Transcript, Delete`,
       embeds: [welcomeEmbed],
-      components: [actionRow, infoRow, adminRow],
+      components: [memberRow, staffRow, adminRow],
     });
 
     // Send SLA info
@@ -2065,7 +2075,28 @@ function buildTicketWelcomeEmbed(
     .setTimestamp();
 }
 
-function buildTicketActionButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+// ====================================
+// ROLE-BASED BUTTON BUILDERS
+// ====================================
+
+// Buttons visible to EVERYONE (ticket creator included)
+function buildMemberButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket:close:${ticket.ticketId}`)
+      .setLabel('Close Ticket')
+      .setEmoji('🔒')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`ticket:add_user:${ticket.ticketId}`)
+      .setLabel('Add User')
+      .setEmoji('➕')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// Buttons visible to STAFF ONLY (Moderator, Developer, Management)
+function buildStaffActionButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`ticket:claim:${ticket.ticketId}`)
@@ -2078,45 +2109,31 @@ function buildTicketActionButtons(ticket: any): ActionRowBuilder<ButtonBuilder> 
       .setEmoji('✅')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`ticket:close:${ticket.ticketId}`)
-      .setLabel('Close Ticket')
-      .setEmoji('🔒')
-      .setStyle(ButtonStyle.Danger),
-  );
-}
-
-function buildTicketInfoButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
       .setCustomId(`ticket:escalate:${ticket.ticketId}`)
       .setLabel('Escalate')
       .setEmoji('⬆️')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`ticket:add_user:${ticket.ticketId}`)
-      .setLabel('Add User')
-      .setEmoji('➕')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`ticket:transfer:${ticket.ticketId}`)
       .setLabel('Transfer')
       .setEmoji('🔄')
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`ticket:rename:${ticket.ticketId}`)
-      .setLabel('Rename')
-      .setEmoji('✏️')
-      .setStyle(ButtonStyle.Secondary),
   );
 }
 
-function buildTicketAdminButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+// Buttons visible to MANAGEMENT ONLY
+function buildManagementButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`ticket:priority:${ticket.ticketId}`)
       .setLabel('Priority')
       .setEmoji('🎯')
       .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`ticket:rename:${ticket.ticketId}`)
+      .setLabel('Rename')
+      .setEmoji('✏️')
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`ticket:transcript:${ticket.ticketId}`)
       .setLabel('Transcript')
@@ -2128,6 +2145,19 @@ function buildTicketAdminButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
       .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger),
   );
+}
+
+// Legacy functions for backwards compatibility
+function buildTicketActionButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+  return buildStaffActionButtons(ticket);
+}
+
+function buildTicketInfoButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+  return buildMemberButtons(ticket);
+}
+
+function buildTicketAdminButtons(ticket: any): ActionRowBuilder<ButtonBuilder> {
+  return buildManagementButtons(ticket);
 }
 
 function getPriorityDisplay(priority: TicketPriority): string {
