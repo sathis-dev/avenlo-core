@@ -36,6 +36,14 @@ const BASE_URL = process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
   : (process.env.DASHBOARD_URL || 'http://localhost:5173');
 
+// Calculate static path early for serving files
+const staticPath = path.join(__dirname, '..', 'dist');
+const indexHtmlPath = path.join(staticPath, 'index.html');
+
+console.log(`📁 Static path: ${staticPath}`);
+console.log(`📁 Index path: ${indexHtmlPath}`);
+console.log(`📁 Index exists: ${fs.existsSync(indexHtmlPath)}`);
+
 // ====================================
 // HEALTH CHECK (before other middleware)
 // ====================================
@@ -45,6 +53,21 @@ app.get('/health', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'dashboard', timestamp: new Date().toISOString() });
+});
+
+// ====================================
+// SERVE STATIC FILES EARLY
+// ====================================
+app.use(express.static(staticPath));
+
+// Serve index.html for root and SPA routes
+app.get('/', (req, res) => {
+  console.log('📥 Root request received');
+  if (fs.existsSync(indexHtmlPath)) {
+    res.sendFile(indexHtmlPath);
+  } else {
+    res.status(500).send(`index.html not found at ${indexHtmlPath}`);
+  }
 });
 
 // ====================================
@@ -345,61 +368,20 @@ app.post('/api/server/unlock', requireAdmin, async (req, res) => {
 });
 
 // ====================================
-// STATIC FILES (Production)
+// SPA FALLBACK (for client-side routing)
 // ====================================
 
-// In Docker: server is at dist-server/, frontend is at dist/
-// __dirname will be dist-server, so we go up one level then into dist
-const staticPath = path.join(__dirname, '..', 'dist');
-
-console.log(`📁 Static files path: ${staticPath}`);
-console.log(`📁 Static path exists: ${fs.existsSync(staticPath)}`);
-
-// List directory contents for debugging
-try {
-  const parentDir = path.join(__dirname, '..');
-  console.log(`📁 Parent dir contents:`, fs.readdirSync(parentDir));
-  if (fs.existsSync(staticPath)) {
-    console.log(`📁 Dist contents:`, fs.readdirSync(staticPath));
-  }
-} catch (e) {
-  console.log(`📁 Could not list directories:`, e);
-}
-
-// Serve index.html for root path explicitly
-app.get('/', (req, res) => {
-  const indexPath = path.join(staticPath, 'index.html');
-  console.log(`📥 Root request, serving: ${indexPath}`);
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(500).send('index.html not found');
-  }
-});
-
-app.use(express.static(staticPath));
-
-// Debug middleware to log all requests
-app.use((req, res, next) => {
-  console.log(`📥 Request: ${req.method} ${req.path}`);
-  next();
-});
-
-// SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res, next) => {
-  console.log(`🔄 SPA fallback for: ${req.path}`);
   // Skip API and auth routes
   if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
     return next();
   }
-  const indexPath = path.join(staticPath, 'index.html');
-  
-  if (!fs.existsSync(indexPath)) {
-    console.error(`❌ index.html not found at: ${indexPath}`);
-    return res.status(404).send(`Frontend not found. Looking for: ${indexPath}`);
+  console.log(`🔄 SPA fallback for: ${req.path}`);
+  if (fs.existsSync(indexHtmlPath)) {
+    res.sendFile(indexHtmlPath);
+  } else {
+    res.status(404).send('Page not found');
   }
-  
-  res.sendFile(indexPath);
 });
 
 // ====================================
