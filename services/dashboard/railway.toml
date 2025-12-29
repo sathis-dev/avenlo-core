@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "services/dashboard/Dockerfile"
+dockerfilePath = "Dockerfile.dashboard"
+watchPatterns = ["services/dashboard/**", "packages/shared/**"]
 
 [deploy]
 healthcheckPath = "/api/health"
