@@ -149,6 +149,9 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
   try {
     // Fetch guild member to check roles
     const guildId = process.env.DISCORD_GUILD_ID;
+    console.log('🔍 Checking roles for guild:', guildId);
+    console.log('🔍 User:', profile.username);
+    
     const memberResponse = await fetch(
       `https://discord.com/api/v10/users/@me/guilds/${guildId}/member`,
       {
@@ -156,15 +159,26 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
       }
     );
 
+    console.log('🔍 Member API response status:', memberResponse.status);
+
     let roles: string[] = [];
     if (memberResponse.ok) {
       const memberData = await memberResponse.json();
       roles = memberData.roles || [];
+      console.log('🔍 User roles:', roles);
+    } else {
+      const errorText = await memberResponse.text();
+      console.log('❌ Member API error:', errorText);
     }
 
+    console.log('🔍 Allowed roles:', ALLOWED_ROLES);
+    
     // Check if user has required role
     const hasAccess = roles.some(role => ALLOWED_ROLES.includes(role));
+    console.log('🔍 Has access:', hasAccess);
+    
     if (!hasAccess) {
+      console.log('❌ Access denied - no matching roles');
       return done(null, false, { message: 'You do not have permission to access this dashboard.' });
     }
 
