@@ -216,40 +216,49 @@ export function buildWelcomeButtons(): ActionRowBuilder<ButtonBuilder> {
 export async function sendWelcomeDM(member: GuildMember): Promise<boolean> {
   try {
     const embed = new EmbedBuilder()
-      .setColor(AvenloColors.CYAN)
+      .setColor(AvenloColors.PURPLE)
       .setAuthor({
-        name: member.guild.name,
+        name: '✨ AVENLO STUDIO ✨',
         iconURL: member.guild.iconURL() || undefined,
       })
-      .setTitle(`Welcome to ${member.guild.name}! 👋`)
+      .setTitle(`Welcome, ${member.user.displayName}! 🎉`)
       .setDescription(
-        `Hey **${member.user.username}**!\n\n` +
-        `Thanks for joining our community. Here's everything you need to know:\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+        `Hey **${member.user.displayName}**!\n\n` +
+        `Thanks for joining **Avenlo Studio**!\n` +
+        `We're a creative development studio where\n` +
+        `innovation meets creativity.\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━`
       )
       .addFields(
         {
-          name: '🚀 About Us',
+          name: '🚀 What We Do',
           value: 
-            `Avenlo Studio is a creative development studio building ` +
-            `innovative solutions. We're a community of developers, designers, ` +
-            `and creators passionate about technology.`,
+            `> 🎨 Creative Design\n` +
+            `> 💻 Software Development\n` +
+            `> 🤖 AI & Automation\n` +
+            `> 🎮 Game Development`,
+          inline: true,
+        },
+        {
+          name: '📋 First Steps',
+          value: 
+            `> 📜 Read the rules\n` +
+            `> 🎭 Get your roles\n` +
+            `> 📖 Check server info\n` +
+            `> 🎫 Need help? Ticket!`,
+          inline: true,
+        },
+        {
+          name: '\u200b',
+          value: `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
           inline: false,
         },
         {
-          name: '📋 Quick Links',
+          name: '💡 Pro Tips',
           value: 
-            `• **Rules** — Please read and follow our community guidelines\n` +
-            `• **Roles** — Select roles to customize your experience\n` +
-            `• **Support** — Create a ticket for any assistance`,
-          inline: false,
-        },
-        {
-          name: '🎯 Pro Tips',
-          value: 
-            `• Be respectful and kind to all members\n` +
-            `• Ask questions! We love helping newcomers\n` +
-            `• Check out our projects and contribute\n` +
+            `• Be respectful and kind to everyone\n` +
+            `• Ask questions! We love helping\n` +
+            `• Check out our showcase channels\n` +
             `• Have fun and make connections!`,
           inline: false,
         }
@@ -287,15 +296,20 @@ export function buildGoodbyeEmbed(member: GuildMember | { user: { tag: string; i
   return new EmbedBuilder()
     .setColor(AvenloColors.GRAY)
     .setAuthor({
-      name: 'Member Left',
+      name: '👋 Member Left',
       iconURL: guild.iconURL() || undefined,
     })
     .setDescription(
       `**${member.user.tag}** has left the server.\n\n` +
-      `We now have **${guild.memberCount}** members.`
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `We hope to see you again!\n\n` +
+      `**Members:** \`${guild.memberCount.toLocaleString()}\``
     )
     .setThumbnail(member.user.displayAvatarURL())
-    .setFooter({ text: `ID: ${member.user.id}` })
+    .setFooter({ 
+      text: `${AvenloBranding.footer} • ID: ${member.user.id}`,
+      iconURL: AvenloBranding.iconUrl,
+    })
     .setTimestamp();
 }
 
