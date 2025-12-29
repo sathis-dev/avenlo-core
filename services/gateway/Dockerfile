@@ -41,8 +41,8 @@ COPY services/gateway/package.json ./services/gateway/
 
 RUN pnpm install --prod
 
-# Runtime stage - using Distroless
-FROM gcr.io/distroless/nodejs20-debian12
+# Runtime stage - using Node Alpine for compatibility
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
@@ -64,4 +64,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Run the service
-CMD ["services/gateway/dist/index.js"]
+CMD ["node", "services/gateway/dist/index.js"]
