@@ -652,6 +652,11 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
 
   const channelName = `ticket-${ticketId.toLowerCase().replace('tkt-', '')}`;
 
+  // Fetch roles to ensure they're cached
+  const supportRole = supportRoleId ? guild.roles.cache.get(supportRoleId) : null;
+  const managementRole = managementRoleId ? guild.roles.cache.get(managementRoleId) : null;
+  const moderatorRole = moderatorRoleId ? guild.roles.cache.get(moderatorRoleId) : null;
+
   // Build permission overwrites
   const permissionOverwrites: any[] = [
     {
@@ -670,10 +675,10 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
     },
   ];
 
-  // Add Developer role permissions
-  if (supportRoleId) {
+  // Add Developer role permissions (only if role exists)
+  if (supportRole) {
     permissionOverwrites.push({
-      id: supportRoleId,
+      id: supportRole.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
@@ -684,10 +689,10 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
     });
   }
 
-  // Add Management role permissions
-  if (managementRoleId) {
+  // Add Management role permissions (only if role exists)
+  if (managementRole) {
     permissionOverwrites.push({
-      id: managementRoleId,
+      id: managementRole.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
@@ -698,10 +703,10 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
     });
   }
 
-  // Add Moderator role permissions
-  if (moderatorRoleId) {
+  // Add Moderator role permissions (only if role exists)
+  if (moderatorRole) {
     permissionOverwrites.push({
-      id: moderatorRoleId,
+      id: moderatorRole.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
