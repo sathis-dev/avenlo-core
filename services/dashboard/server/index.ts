@@ -320,10 +320,11 @@ app.post('/api/server/unlock', requireAdmin, async (req, res) => {
 // STATIC FILES (Production)
 // ====================================
 
-// Always serve static files in production
-const staticPath = process.env.NODE_ENV === 'production' 
-  ? path.join(__dirname, '../dist')
-  : path.join(__dirname, '../dist');
+// In Docker: server is at dist-server/, frontend is at dist/
+// __dirname will be dist-server, so we go up one level then into dist
+const staticPath = path.join(__dirname, '..', 'dist');
+
+console.log(`📁 Static files path: ${staticPath}`);
 
 app.use(express.static(staticPath));
 
@@ -333,7 +334,9 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
     return next();
   }
-  res.sendFile(path.join(staticPath, 'index.html'));
+  const indexPath = path.join(staticPath, 'index.html');
+  console.log(`📄 Serving: ${indexPath}`);
+  res.sendFile(indexPath);
 });
 
 // ====================================
