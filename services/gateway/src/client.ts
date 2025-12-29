@@ -15,6 +15,7 @@ import {
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
   UserSelectMenuInteraction,
+  TextChannel,
 } from 'discord.js';
 import { createLogger, getRedisClient, EventTypes } from '@avenlo/shared';
 import { loadCommands, Command } from './commands';
@@ -315,7 +316,7 @@ export class GatewayClient extends Client {
 
     // Handle ticket user selections
     if (action === 'ticket') {
-      const { EmbedBuilder, PermissionFlagsBits, TextChannel } = await import('discord.js');
+      const { EmbedBuilder, PermissionFlagsBits } = await import('discord.js');
       const { AvenloColors, AvenloBranding, Ticket } = await import('@avenlo/shared');
       const ticketId = params[0];
       const ticket = await Ticket.findOne({ ticketId });
@@ -548,9 +549,9 @@ export class GatewayClient extends Client {
         },
       ]);
 
-    const selectRow = new ActionRowBuilder<typeof StringSelectMenuBuilder>().addComponents(selectMenu);
+    const selectRow = new ActionRowBuilder().addComponents(selectMenu) as any;
 
-    await interaction.update({ embeds: [embed], components: [selectRow as any] });
+    await interaction.update({ embeds: [embed], components: [selectRow] });
   }
 
   // ====================================

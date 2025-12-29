@@ -139,7 +139,7 @@ export class TicketController {
     });
 
     // Alert management for high priority tickets
-    if (isVerifiedClient || priority === TicketPriority.HIGH || priority === TicketPriority.URGENT) {
+    if (isVerifiedClient || priority === TicketPriority.HIGH) {
       await this.alertManagement(channel.guild, ticket);
     }
 

@@ -73,6 +73,7 @@ export const AvenloBranding = {
   name: 'Avenlo Studio',
   tagline: 'Building the Future, One Line at a Time',
   logo: 'https://i.imgur.com/your-logo.png', // Replace with actual logo
+  iconUrl: 'https://i.imgur.com/your-logo.png', // Icon for embed footers
   footer: '© 2025 Avenlo Studio • Powered by Avenlo Core',
   website: 'https://avenlo.studio',
 } as const;

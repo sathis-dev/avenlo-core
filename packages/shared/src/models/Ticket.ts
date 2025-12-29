@@ -91,6 +91,10 @@ export interface ITicket extends Document {
   closedAt?: Date;
   closedBy?: string;
   closedReason?: string;
+  
+  // Resolution tracking
+  resolution?: string;
+  resolvedAt?: Date;
 }
 
 const TicketMessageSchema = new Schema<ITicketMessage>({
@@ -171,6 +175,10 @@ const TicketSchema = new Schema<ITicket>({
   closedAt: { type: Date },
   closedBy: { type: String },
   closedReason: { type: String },
+  
+  // Resolution tracking
+  resolution: { type: String },
+  resolvedAt: { type: Date },
 }, {
   timestamps: true,
 });
