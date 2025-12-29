@@ -9,7 +9,6 @@ import {
   XCircle,
   RefreshCw,
   Loader2,
-  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 

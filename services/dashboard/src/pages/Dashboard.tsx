@@ -5,15 +5,11 @@ import {
   UserCheck,
   Ticket,
   Shield,
-  MessageSquare,
-  UserPlus,
   TrendingUp,
-  TrendingDown,
   RefreshCw,
   Loader2,
 } from 'lucide-react';
 import StatsChart from '../components/StatsChart';
-import ActivityFeed from '../components/ActivityFeed';
 import QuickActions from '../components/QuickActions';
 
 interface DashboardStats {
