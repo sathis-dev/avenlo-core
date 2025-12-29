@@ -139,6 +139,8 @@ if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
   console.log('⚠️  Starting server without Discord OAuth - only health endpoints will work');
 } else {
   console.log('✅ Discord OAuth configured');
+  console.log('🔍 Client ID:', process.env.DISCORD_CLIENT_ID);
+  console.log('🔍 Secret length:', process.env.DISCORD_CLIENT_SECRET?.length);
 }
 
 // Only initialize Discord OAuth if credentials are available
