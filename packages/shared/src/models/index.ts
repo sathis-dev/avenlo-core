@@ -4,3 +4,5 @@ export * from './InterviewSession';
 export * from './Transaction';
 export * from './Dashboard';
 export * from './Ticket';
+export * from './ModerationLog';
+export * from './AuditLog';

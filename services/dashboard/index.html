@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0F0F23" />
+    <meta name="description" content="Avenlo Core - Admin Dashboard" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <title>Avenlo Core | Admin Dashboard</title>
+    
+    <style>
+      /* Loading animation */
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        background: #080814;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s, visibility 0.5s;
+      }
+      .loading-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .loader {
+        width: 60px;
+        height: 60px;
+        border: 3px solid #1A1A2E;
+        border-top-color: #00D4FF;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body class="bg-avenlo-darker text-white antialiased">
+    <div id="loading" class="loading-screen">
+      <div class="loader"></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Hide loading screen when app is ready
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          document.getElementById('loading').classList.add('hidden');
+        }, 500);
+      });
+    </script>
+  </body>
+</html>
