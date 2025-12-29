@@ -19,12 +19,29 @@ import { createLogger, AvenloColors, AvenloBranding } from '@avenlo/shared';
 const logger = createLogger('welcome-system');
 
 // ====================================
+// CHANNEL IDS
+// ====================================
+const CHANNELS = {
+  welcome: '1382631780825305085',
+  rules: '1382631780825305088',
+  information: '1382631780825305089',
+  roles: '1382631780825305090',
+  studioNews: '1382631782087860227',
+  ourWork: '1382631782087860228',
+  activeProjects: '1382631782087860229',
+  tickets: '1382631783031468035',
+  faqKnowledgeBase: '1382631783031468036',
+  bugReports: '1382631783031468037',
+  suggestions: '1382631783031468038',
+};
+
+// ====================================
 // CONFIGURATION
 // ====================================
 
 export const WELCOME_CONFIG = {
   // Channel ID for welcome messages
-  welcomeChannelId: process.env.CHANNEL_WELCOME || '',
+  welcomeChannelId: CHANNELS.welcome,
   
   // Auto-assign roles on join
   autoRoles: [
@@ -92,46 +109,72 @@ export function buildWelcomeEmbed(member: GuildMember): EmbedBuilder {
   const accountAge = getAccountAgeWarning(member.user.createdAt);
   const milestone = getMemberMilestone(memberCount);
   
-  // Create stunning welcome embed
+  // Create stunning welcome embed - optimized for mobile & desktop
   const embed = new EmbedBuilder()
-    .setColor(accountAge.color)
+    .setColor(AvenloColors.PURPLE)
     .setAuthor({
-      name: 'WELCOME TO AVENLO STUDIO',
+      name: '✨ WELCOME TO AVENLO STUDIO ✨',
       iconURL: guild.iconURL() || undefined,
     })
-    .setTitle(`${member.user.username} just joined!`)
+    .setTitle(`🎉 ${member.user.displayName} just joined!`)
     .setDescription(
-      `Hey ${member}! Welcome to **${guild.name}**! 🎉\n\n` +
-      `We're thrilled to have you here! This is where creativity meets code.\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `${milestone ? milestone + '\n\n' : ''}` +
-      `📋 **Get Started:**\n` +
-      `> 1️⃣ Read our rules in <#rules>\n` +
-      `> 2️⃣ Grab your roles in <#roles>\n` +
-      `> 3️⃣ Introduce yourself in <#introductions>\n` +
-      `> 4️⃣ Start chatting in <#general>\n\n` +
-      `🎫 Need help? Open a ticket anytime!`
+      `Hey ${member}! Welcome to **AVENLO STUDIO**! 🚀\n\n` +
+      `We're a creative development studio where\n` +
+      `**innovation meets creativity**.\n\n` +
+      `${milestone ? `${milestone}\n\n` : ''}` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━`
     )
     .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
     .addFields(
       {
-        name: '👤 Member Info',
+        name: '📋 Get Started',
         value: 
-          `**Username:** ${member.user.tag}\n` +
-          `**ID:** \`${member.id}\`\n` +
-          `**Created:** ${accountAge.message}`,
+          `**1.** Read rules → <#${CHANNELS.rules}>\n` +
+          `**2.** Get roles → <#${CHANNELS.roles}>\n` +
+          `**3.** Server info → <#${CHANNELS.information}>`,
         inline: true,
       },
       {
-        name: '📊 Server Stats',
+        name: '🎨 Explore',
         value: 
-          `**Members:** ${memberCount.toLocaleString()}\n` +
-          `**Online:** ${guild.members.cache.filter(m => m.presence?.status === 'online').size}\n` +
-          `**Your #:** #${memberCount}`,
+          `**📢** <#${CHANNELS.studioNews}>\n` +
+          `**🖼️** <#${CHANNELS.ourWork}>\n` +
+          `**🚀** <#${CHANNELS.activeProjects}>`,
         inline: true,
+      },
+      {
+        name: '\u200b',
+        value: `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        inline: false,
+      },
+      {
+        name: '👤 About You',
+        value: 
+          `> **Tag:** \`${member.user.tag}\`\n` +
+          `> **ID:** \`${member.id}\`\n` +
+          `> **Joined:** ${accountAge.message}`,
+        inline: true,
+      },
+      {
+        name: '📊 Server Info',
+        value: 
+          `> **Members:** \`${memberCount.toLocaleString()}\`\n` +
+          `> **You are:** Member #${memberCount}\n` +
+          `> **Status:** ${accountAge.isNew ? '⚠️ New' : '✅ Verified'}`,
+        inline: true,
+      },
+      {
+        name: '\u200b',
+        value: `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        inline: false,
+      },
+      {
+        name: '🎫 Need Help?',
+        value: `Create a ticket in <#${CHANNELS.tickets}>\nOur team typically responds within 30 mins!`,
+        inline: false,
       }
     )
-    .setImage('https://i.imgur.com/AfFp7pu.png') // Banner image
+    .setImage('https://i.imgur.com/AfFp7pu.png')
     .setFooter({
       text: `${AvenloBranding.footer} • Member #${memberCount}`,
       iconURL: AvenloBranding.iconUrl,
@@ -145,18 +188,22 @@ export function buildWelcomeButtons(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('welcome:rules')
-      .setLabel('📜 Read Rules')
-      .setStyle(ButtonStyle.Primary),
+      .setLabel('Read Rules')
+      .setEmoji('📜')
+      .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId('welcome:roles')
-      .setLabel('🎭 Get Roles')
-      .setStyle(ButtonStyle.Secondary),
+      .setLabel('Get Roles')
+      .setEmoji('🎭')
+      .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId('welcome:help')
-      .setLabel('❓ Get Help')
+      .setLabel('Get Help')
+      .setEmoji('❓')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setLabel('🌐 Website')
+      .setLabel('Website')
+      .setEmoji('🌐')
       .setStyle(ButtonStyle.Link)
       .setURL(AvenloBranding.website),
   );
@@ -336,68 +383,95 @@ export async function handleWelcomeButton(
   switch (action) {
     case 'rules':
       const rulesEmbed = new EmbedBuilder()
-        .setColor(AvenloColors.BLUE)
-        .setTitle('📜 Server Rules')
+        .setColor(AvenloColors.PURPLE)
+        .setTitle('📜 Community Rules')
         .setDescription(
-          `**Welcome to ${interaction.guild.name}!**\n\n` +
-          `Please follow these rules to maintain a positive community:\n\n` +
-          `**1. 🤝 Be Respectful**\n` +
-          `> Treat everyone with kindness and respect.\n\n` +
-          `**2. 🚫 No Harassment**\n` +
-          `> Bullying, threats, or discrimination are not tolerated.\n\n` +
-          `**3. 🔞 Keep it Clean**\n` +
-          `> No NSFW content in any channel.\n\n` +
-          `**4. 📢 No Spam**\n` +
-          `> Avoid excessive messages, caps, or mentions.\n\n` +
-          `**5. 🎭 No Impersonation**\n` +
-          `> Don't pretend to be someone you're not.\n\n` +
-          `**6. 🔗 No Unauthorized Ads**\n` +
-          `> Ask before promoting servers or content.\n\n` +
-          `**7. 🛡️ Follow Discord ToS**\n` +
-          `> Abide by Discord's Terms of Service.\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `Violations may result in warnings, mutes, kicks, or bans.`
+          `**Read our full rules in <#${CHANNELS.rules}>**\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `**Quick Summary:**\n\n` +
+          `> 🤝 **Respect** — Be kind to everyone\n` +
+          `> 💬 **Clean** — No NSFW or inappropriate content\n` +
+          `> 🚫 **No Spam** — Keep it meaningful\n` +
+          `> 🔒 **Privacy** — Protect personal info\n` +
+          `> 📢 **Right Channels** — Post in correct places\n` +
+          `> 👮 **Listen to Staff** — Follow mod instructions\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `*Violations may result in warnings, timeouts, or bans.*`
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      await interaction.reply({ embeds: [rulesEmbed], ephemeral: true });
+      const rulesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel('📜 View Full Rules')
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.rules}`)
+      );
+      
+      await interaction.reply({ embeds: [rulesEmbed], components: [rulesButton], ephemeral: true });
       break;
       
     case 'roles':
       const rolesEmbed = new EmbedBuilder()
-        .setColor(AvenloColors.PURPLE)
-        .setTitle('🎭 Available Roles')
+        .setColor(AvenloColors.CYAN)
+        .setTitle('🎭 Customize Your Profile')
         .setDescription(
-          `Head over to our roles channel to customize your experience!\n\n` +
-          `**Available Categories:**\n` +
-          `> 🎨 **Color Roles** — Customize your name color\n` +
-          `> 🔔 **Ping Roles** — Get notified for updates\n` +
-          `> 💻 **Tech Roles** — Show your expertise\n` +
-          `> 🎮 **Interest Roles** — Find like-minded people`
+          `**Get your roles in <#${CHANNELS.roles}>**\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `**Available Roles:**\n\n` +
+          `> 🎨 **Color Roles** — Stand out with custom colors\n` +
+          `> 🔔 **Notification Roles** — Get pinged for updates\n` +
+          `> 💻 **Tech Stack Roles** — Show your skills\n` +
+          `> 🎮 **Interest Roles** — Find your community\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `*React to messages to claim your roles!*`
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      await interaction.reply({ embeds: [rolesEmbed], ephemeral: true });
+      const rolesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel('🎭 Get Roles')
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.roles}`)
+      );
+      
+      await interaction.reply({ embeds: [rolesEmbed], components: [rolesButton], ephemeral: true });
       break;
       
     case 'help':
       const helpEmbed = new EmbedBuilder()
-        .setColor(AvenloColors.CYAN)
-        .setTitle('❓ Need Help?')
+        .setColor(AvenloColors.GREEN)
+        .setTitle('❓ Need Assistance?')
         .setDescription(
-          `Here's how to get assistance:\n\n` +
-          `**🎫 Open a Ticket**\n` +
-          `> Use \`/ticket\` or click the button in our ticket channel.\n\n` +
-          `**💬 Ask in Chat**\n` +
-          `> Post your question in the general or help channel.\n\n` +
-          `**📚 Check Resources**\n` +
-          `> Browse our FAQ and documentation channels.\n\n` +
-          `**👤 Contact Staff**\n` +
-          `> Ping a moderator if it's urgent.`
+          `**We're here to help!**\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `**🎫 Support Ticket**\n` +
+          `> Create a ticket in <#${CHANNELS.tickets}>\n` +
+          `> *Average response: ~30 mins*\n\n` +
+          `**📖 Knowledge Base**\n` +
+          `> Check our FAQ at <#${CHANNELS.faqKnowledgeBase}>\n` +
+          `> *Common questions answered*\n\n` +
+          `**🐛 Bug Reports**\n` +
+          `> Report issues in <#${CHANNELS.bugReports}>\n` +
+          `> *Help us improve*\n\n` +
+          `**💡 Suggestions**\n` +
+          `> Share ideas in <#${CHANNELS.suggestions}>\n` +
+          `> *We love feedback*\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━`
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+      const helpButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel('🎫 Create Ticket')
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.tickets}`),
+        new ButtonBuilder()
+          .setLabel('📖 FAQ')
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.faqKnowledgeBase}`)
+      );
+      
+      await interaction.reply({ embeds: [helpEmbed], components: [helpButtons], ephemeral: true });
       break;
   }
 }

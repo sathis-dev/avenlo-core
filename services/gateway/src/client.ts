@@ -32,6 +32,7 @@ import { TicketHandlers } from './handlers/TicketHandler';
 import { AIModerationHandlers } from './handlers/AIModeration';
 import { WelcomeHandlers } from './handlers/WelcomeHandler';
 import { ServerProtection } from './handlers/ServerProtection';
+import { handleRulesButton } from './commands/rules';
 
 const logger = createLogger('gateway-client');
 
@@ -329,6 +330,12 @@ export class GatewayClient extends Client {
     // Handle welcome system buttons
     if (action === 'welcome') {
       await WelcomeHandlers.handleWelcomeButton(interaction, subAction);
+      return;
+    }
+
+    // Handle rules system buttons
+    if (action === 'rules') {
+      await handleRulesButton(interaction);
       return;
     }
 
