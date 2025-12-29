@@ -14,8 +14,13 @@ import { Strategy as DiscordStrategy } from 'passport-discord';
 import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+console.log(`📍 Current file: ${__filename}`);
+console.log(`📍 Current dir: ${__dirname}`);
 
 // Load environment variables
 import dotenv from 'dotenv';
@@ -325,6 +330,18 @@ app.post('/api/server/unlock', requireAdmin, async (req, res) => {
 const staticPath = path.join(__dirname, '..', 'dist');
 
 console.log(`📁 Static files path: ${staticPath}`);
+console.log(`📁 Static path exists: ${fs.existsSync(staticPath)}`);
+
+// List directory contents for debugging
+try {
+  const parentDir = path.join(__dirname, '..');
+  console.log(`📁 Parent dir contents:`, fs.readdirSync(parentDir));
+  if (fs.existsSync(staticPath)) {
+    console.log(`📁 Dist contents:`, fs.readdirSync(staticPath));
+  }
+} catch (e) {
+  console.log(`📁 Could not list directories:`, e);
+}
 
 app.use(express.static(staticPath));
 
@@ -335,7 +352,12 @@ app.get('*', (req, res, next) => {
     return next();
   }
   const indexPath = path.join(staticPath, 'index.html');
-  console.log(`📄 Serving: ${indexPath}`);
+  
+  if (!fs.existsSync(indexPath)) {
+    console.error(`❌ index.html not found at: ${indexPath}`);
+    return res.status(404).send(`Frontend not found. Looking for: ${indexPath}`);
+  }
+  
   res.sendFile(indexPath);
 });
 
