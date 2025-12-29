@@ -2,7 +2,9 @@
 # AVENLO CORE - RAILWAY CONFIGURATION
 # ====================================
 
-# This file tells Railway how to build and deploy
+# NOTE: This is the DEFAULT config for the Gateway service.
+# Dashboard has its own config at services/dashboard/railway.toml
+# When creating a dashboard service, set Root Directory to "services/dashboard"
 
 [build]
 builder = "dockerfile"
