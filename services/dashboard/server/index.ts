@@ -37,6 +37,17 @@ const BASE_URL = process.env.RAILWAY_PUBLIC_DOMAIN
   : (process.env.DASHBOARD_URL || 'http://localhost:5173');
 
 // ====================================
+// HEALTH CHECK (before other middleware)
+// ====================================
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'dashboard' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'dashboard', timestamp: new Date().toISOString() });
+});
+
+// ====================================
 // MIDDLEWARE
 // ====================================
 
