@@ -56,42 +56,37 @@ app.get('/api/health', (req, res) => {
 });
 
 // ====================================
-// SERVE STATIC FILES EARLY
-// ====================================
-app.use(express.static(staticPath));
-
-// Serve index.html for root and SPA routes
-app.get('/', (req, res) => {
-  console.log('📥 Root request received');
-  if (fs.existsSync(indexHtmlPath)) {
-    res.sendFile(indexHtmlPath);
-  } else {
-    res.status(500).send(`index.html not found at ${indexHtmlPath}`);
-  }
-});
-
-// ====================================
-// MIDDLEWARE
+// MIDDLEWARE (must be before static files)
 // ====================================
 
 app.use(cors({
-  origin: BASE_URL,
+  origin: true, // Allow all origins for now
   credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Trust proxy for Railway (needed for secure cookies)
+app.set('trust proxy', 1);
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'avenlo-dashboard-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax', // Changed from 'none' to 'lax' for same-site redirects
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    httpOnly: true,
   },
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// ====================================
+// STATIC FILES (after session middleware)
+// ====================================
+app.use(express.static(staticPath));
 
 // ====================================
 // DISCORD OAUTH2
