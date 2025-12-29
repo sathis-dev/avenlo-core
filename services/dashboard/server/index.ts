@@ -271,34 +271,84 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 // Dashboard stats
 app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   try {
-    // In production, these would come from Discord API and database
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const botToken = process.env.DISCORD_TOKEN;
+    
+    // Fetch real guild data from Discord API
+    let totalMembers = 0;
+    let onlineMembers = 0;
+    
+    if (botToken && guildId) {
+      try {
+        // Get guild info
+        const guildResponse = await fetch(
+          `https://discord.com/api/v10/guilds/${guildId}?with_counts=true`,
+          { headers: { Authorization: `Bot ${botToken}` } }
+        );
+        if (guildResponse.ok) {
+          const guildData = await guildResponse.json();
+          totalMembers = guildData.approximate_member_count || 0;
+          onlineMembers = guildData.approximate_presence_count || 0;
+        }
+      } catch (e) {
+        console.error('Failed to fetch Discord guild:', e);
+      }
+    }
+    
+    // Fetch real ticket/moderation data from MongoDB
+    let openTickets = 0;
+    let totalTickets = 0;
+    let moderationActions = 0;
+    
+    try {
+      const db = mongoose.connection.db;
+      if (db) {
+        // Count tickets
+        const ticketsCollection = db.collection('tickets');
+        totalTickets = await ticketsCollection.countDocuments();
+        openTickets = await ticketsCollection.countDocuments({ status: 'open' });
+        
+        // Count moderation actions
+        const modCollection = db.collection('moderationlogs');
+        moderationActions = await modCollection.countDocuments();
+      }
+    } catch (e) {
+      console.error('Failed to fetch from MongoDB:', e);
+    }
+    
     const stats = {
-      totalMembers: 720,
-      onlineMembers: 156,
-      totalTickets: 156,
-      openTickets: 12,
-      moderationActions: 89,
-      messagesPerDay: 2400,
-      newMembersToday: 8,
-      activeProjects: 5,
+      totalMembers,
+      onlineMembers,
+      totalTickets,
+      openTickets,
+      moderationActions,
+      messagesPerDay: 0, // Would need message tracking
+      newMembersToday: 0, // Would need join tracking
+      activeProjects: 0,
     };
 
-    const activity = [
-      {
-        id: '1',
-        type: 'join',
-        user: { id: '1', username: 'CoolUser123', avatar: '' },
-        action: 'joined the server',
-        timestamp: new Date(),
-      },
-      {
-        id: '2',
-        type: 'ticket',
-        user: { id: '2', username: 'ClientPro', avatar: '' },
-        action: 'opened ticket #0042',
-        timestamp: new Date(Date.now() - 5 * 60 * 1000),
-      },
-    ];
+    // Fetch recent activity from MongoDB
+    let activity: any[] = [];
+    try {
+      const db = mongoose.connection.db;
+      if (db) {
+        const modLogs = await db.collection('moderationlogs')
+          .find()
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .toArray();
+        
+        activity = modLogs.map((log: any) => ({
+          id: log._id.toString(),
+          type: 'moderation',
+          user: { id: log.moderatorId, username: log.moderatorName || 'Moderator', avatar: '' },
+          action: `${log.action} on ${log.targetName || 'user'}`,
+          timestamp: log.createdAt,
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to fetch activity:', e);
+    }
 
     res.json({ stats, activity });
   } catch (error) {
@@ -310,9 +360,40 @@ app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
 // Members list
 app.get('/api/members', requireAuth, async (req, res) => {
   try {
-    // Would fetch from Discord API
-    res.json({ members: [], total: 0 });
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const botToken = process.env.DISCORD_TOKEN;
+    
+    if (!botToken || !guildId) {
+      return res.json({ members: [], total: 0 });
+    }
+    
+    // Fetch members from Discord API
+    const membersResponse = await fetch(
+      `https://discord.com/api/v10/guilds/${guildId}/members?limit=100`,
+      { headers: { Authorization: `Bot ${botToken}` } }
+    );
+    
+    if (!membersResponse.ok) {
+      console.error('Failed to fetch members:', await membersResponse.text());
+      return res.json({ members: [], total: 0 });
+    }
+    
+    const membersData = await membersResponse.json();
+    const members = membersData.map((m: any) => ({
+      id: m.user.id,
+      username: m.user.username,
+      displayName: m.nick || m.user.global_name || m.user.username,
+      avatar: m.user.avatar 
+        ? `https://cdn.discordapp.com/avatars/${m.user.id}/${m.user.avatar}.png`
+        : null,
+      roles: m.roles,
+      joinedAt: m.joined_at,
+      isBot: m.user.bot || false,
+    }));
+    
+    res.json({ members, total: members.length });
   } catch (error) {
+    console.error('Failed to fetch members:', error);
     res.status(500).json({ error: 'Failed to fetch members' });
   }
 });
@@ -320,9 +401,31 @@ app.get('/api/members', requireAuth, async (req, res) => {
 // Moderation actions
 app.get('/api/moderation/actions', requireAuth, async (req, res) => {
   try {
-    // Would fetch from database
-    res.json({ actions: [], total: 0 });
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.json({ actions: [], total: 0 });
+    }
+    
+    const actions = await db.collection('moderationlogs')
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
+    
+    const formattedActions = actions.map((a: any) => ({
+      id: a._id.toString(),
+      action: a.action,
+      targetId: a.targetId,
+      targetName: a.targetName || 'Unknown',
+      moderatorId: a.moderatorId,
+      moderatorName: a.moderatorName || 'System',
+      reason: a.reason,
+      timestamp: a.createdAt,
+    }));
+    
+    res.json({ actions: formattedActions, total: actions.length });
   } catch (error) {
+    console.error('Failed to fetch actions:', error);
     res.status(500).json({ error: 'Failed to fetch actions' });
   }
 });
@@ -330,9 +433,31 @@ app.get('/api/moderation/actions', requireAuth, async (req, res) => {
 // Tickets
 app.get('/api/tickets', requireAuth, async (req, res) => {
   try {
-    // Would fetch from database
-    res.json({ tickets: [], total: 0 });
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.json({ tickets: [], total: 0 });
+    }
+    
+    const tickets = await db.collection('tickets')
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
+    
+    const formattedTickets = tickets.map((t: any) => ({
+      id: t._id.toString(),
+      number: t.ticketNumber || t._id.toString().slice(-4),
+      userId: t.userId,
+      userName: t.userName || 'Unknown',
+      status: t.status || 'open',
+      subject: t.subject || 'Support Request',
+      createdAt: t.createdAt,
+      closedAt: t.closedAt,
+    }));
+    
+    res.json({ tickets: formattedTickets, total: tickets.length });
   } catch (error) {
+    console.error('Failed to fetch tickets:', error);
     res.status(500).json({ error: 'Failed to fetch tickets' });
   }
 });
