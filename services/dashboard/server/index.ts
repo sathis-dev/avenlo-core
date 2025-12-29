@@ -104,9 +104,20 @@ const CALLBACK_URL = process.env.DISCORD_CALLBACK_URL
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/auth/discord/callback`
       : 'http://localhost:3001/auth/discord/callback');
 
-passport.use(new DiscordStrategy({
-  clientID: process.env.DISCORD_CLIENT_ID!,
-  clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+// Check for required Discord OAuth environment variables
+if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+  console.error('❌ Missing required environment variables: DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET');
+  console.error('   Please set these in your Railway service variables');
+  console.log('⚠️  Starting server without Discord OAuth - only health endpoints will work');
+} else {
+  console.log('✅ Discord OAuth configured');
+}
+
+// Only initialize Discord OAuth if credentials are available
+if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
+  passport.use(new DiscordStrategy({
+    clientID: process.env.DISCORD_CLIENT_ID,
+    clientSecret: process.env.DISCORD_CLIENT_SECRET,
   callbackURL: CALLBACK_URL,
   scope: ['identify', 'email', 'guilds', 'guilds.members.read'],
 }, async (accessToken, refreshToken, profile, done) => {
@@ -149,6 +160,7 @@ passport.use(new DiscordStrategy({
     return done(error as Error);
   }
 }));
+} // End of Discord OAuth conditional
 
 // ====================================
 // AUTH ROUTES
