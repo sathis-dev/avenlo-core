@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -7,206 +7,206 @@ import {
   Shield,
   MessageSquare,
   UserPlus,
-  Activity,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-  Zap,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
-import { useDashboardStore } from '../stores/dashboardStore';
 import StatsChart from '../components/StatsChart';
 import ActivityFeed from '../components/ActivityFeed';
 import QuickActions from '../components/QuickActions';
 
+interface DashboardStats {
+  totalMembers: number;
+  onlineMembers: number;
+  totalTickets: number;
+  openTickets: number;
+  moderationActions: number;
+  messagesPerDay: number;
+  newMembersToday: number;
+  activeProjects: number;
+}
+
+interface Activity {
+  id: string;
+  type: string;
+  user: { id: string; username: string; avatar: string };
+  action: string;
+  timestamp: string;
+}
+
 export default function Dashboard() {
-  const { stats, isLoading, fetchStats } = useDashboardStore();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const fetchDashboard = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    try {
+      const response = await fetch('/api/dashboard/stats', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data.stats);
+        setActivity(data.activity || []);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000); // Refresh every 30s
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // LIVE SYNC - refresh every 20 seconds
+  useEffect(() => {
+    const interval = setInterval(() => fetchDashboard(false), 20000);
     return () => clearInterval(interval);
-  }, [fetchStats]);
+  }, [fetchDashboard]);
 
-  const statCards = [
-    {
-      title: 'Total Members',
-      value: stats.totalMembers.toLocaleString(),
-      change: '+12%',
-      trend: 'up',
-      icon: Users,
-      color: 'from-avenlo-cyan to-blue-500',
-      bgColor: 'bg-avenlo-cyan/10',
-    },
-    {
-      title: 'Online Now',
-      value: stats.onlineMembers.toLocaleString(),
-      change: `${Math.round((stats.onlineMembers / Math.max(stats.totalMembers, 1)) * 100)}%`,
-      trend: 'up',
-      icon: UserCheck,
-      color: 'from-success to-emerald-400',
-      bgColor: 'bg-success/10',
-    },
-    {
-      title: 'Open Tickets',
-      value: stats.openTickets.toString(),
-      subtext: `${stats.totalTickets} total`,
-      icon: Ticket,
-      color: 'from-avenlo-purple to-violet-400',
-      bgColor: 'bg-avenlo-purple/10',
-    },
-    {
-      title: 'Mod Actions',
-      value: stats.moderationActions.toString(),
-      change: '-8%',
-      trend: 'down',
-      icon: Shield,
-      color: 'from-warning to-orange-400',
-      bgColor: 'bg-warning/10',
-    },
-    {
-      title: 'Messages/Day',
-      value: stats.messagesPerDay.toLocaleString(),
-      change: '+5%',
-      trend: 'up',
-      icon: MessageSquare,
-      color: 'from-avenlo-pink to-rose-400',
-      bgColor: 'bg-avenlo-pink/10',
-    },
-    {
-      title: 'New Today',
-      value: stats.newMembersToday.toString(),
-      subtext: 'new members',
-      icon: UserPlus,
-      color: 'from-info to-sky-400',
-      bgColor: 'bg-info/10',
-    },
-  ];
-
-  if (isLoading) {
+  if (loading || !stats) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-avenlo-border border-t-avenlo-cyan rounded-full animate-spin" />
-          <p className="text-gray-400">Loading dashboard...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-avenlo-cyan" />
       </div>
     );
   }
 
+  const statCards = [
+    {
+      label: 'Total Members',
+      value: stats.totalMembers.toLocaleString(),
+      icon: Users,
+      trend: null,
+      color: 'from-avenlo-cyan/20 to-avenlo-cyan/5',
+      iconColor: 'text-avenlo-cyan',
+    },
+    {
+      label: 'Online Now',
+      value: stats.onlineMembers.toLocaleString(),
+      icon: UserCheck,
+      trend: null,
+      color: 'from-success/20 to-success/5',
+      iconColor: 'text-success',
+    },
+    {
+      label: 'Open Tickets',
+      value: stats.openTickets.toString(),
+      icon: Ticket,
+      subtext: `${stats.totalTickets} total`,
+      color: 'from-avenlo-purple/20 to-avenlo-purple/5',
+      iconColor: 'text-avenlo-purple',
+    },
+    {
+      label: 'Mod Actions',
+      value: stats.moderationActions.toString(),
+      icon: Shield,
+      trend: null,
+      color: 'from-warning/20 to-warning/5',
+      iconColor: 'text-warning',
+    },
+  ];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-gray-400 mt-1">Welcome back! Here's what's happening.</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Clock className="w-4 h-4" />
-          <span>Last updated: Just now</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+            Live sync
+          </div>
+          <span className="text-sm text-gray-500">
+            Updated: {lastUpdated?.toLocaleTimeString() || 'Never'}
+          </span>
+          <button onClick={() => fetchDashboard(true)} disabled={refreshing} className="btn-icon">
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => (
           <motion.div
-            key={stat.title}
+            key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="glass-card-hover p-6 relative overflow-hidden group"
+            className={`glass-card p-6 bg-gradient-to-br ${stat.color}`}
           >
-            {/* Background glow */}
-            <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bgColor} rounded-full blur-3xl opacity-50 group-hover:opacity-75 transition-opacity`} />
-            
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-xl ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`} style={{ color: 'currentColor' }} />
-                </div>
-                {stat.change && (
-                  <div className={`flex items-center gap-1 text-sm ${stat.trend === 'up' ? 'text-success' : 'text-danger'}`}>
-                    {stat.trend === 'up' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                    {stat.change}
-                  </div>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">{stat.label}</p>
+                <p className="text-3xl font-bold mt-2">{stat.value}</p>
+                {stat.subtext && (
+                  <p className="text-xs text-gray-500 mt-1">{stat.subtext}</p>
                 )}
               </div>
-
-              <div>
-                <h3 className="text-sm text-gray-400 mb-1">{stat.title}</h3>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold">{stat.value}</span>
-                  {stat.subtext && (
-                    <span className="text-sm text-gray-500">{stat.subtext}</span>
-                  )}
-                </div>
+              <div className={`p-3 rounded-xl bg-avenlo-dark/50`}>
+                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
               </div>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Charts and Activity */}
+      {/* Chart and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="lg:col-span-2 glass-card p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold">Server Activity</h2>
-              <p className="text-sm text-gray-400">Messages and joins over time</p>
-            </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 text-sm bg-avenlo-cyan/20 text-avenlo-cyan rounded-lg">
-                7D
-              </button>
-              <button className="px-3 py-1 text-sm text-gray-400 hover:bg-white/5 rounded-lg transition-colors">
-                30D
-              </button>
-              <button className="px-3 py-1 text-sm text-gray-400 hover:bg-white/5 rounded-lg transition-colors">
-                90D
-              </button>
-            </div>
-          </div>
+        <div className="lg:col-span-2">
           <StatsChart />
-        </motion.div>
-
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="glass-card p-6"
-        >
-          <div className="flex items-center gap-2 mb-6">
-            <Zap className="w-5 h-5 text-avenlo-cyan" />
-            <h2 className="text-lg font-semibold">Quick Actions</h2>
-          </div>
-          <QuickActions />
-        </motion.div>
+        </div>
+        <QuickActions />
       </div>
 
       {/* Activity Feed */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="glass-card p-6"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-avenlo-cyan" />
-            <h2 className="text-lg font-semibold">Recent Activity</h2>
-          </div>
-          <button className="text-sm text-avenlo-cyan hover:underline">View all</button>
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-avenlo-cyan" />
+            Recent Activity
+          </h3>
+          <span className="text-xs text-gray-500">From MongoDB (live)</span>
         </div>
-        <ActivityFeed />
-      </motion.div>
+        {activity.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No recent activity</p>
+        ) : (
+          <div className="space-y-3">
+            {activity.slice(0, 10).map((item, index) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="flex items-center gap-3 p-3 rounded-lg bg-avenlo-dark/30 hover:bg-avenlo-dark/50 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-avenlo-cyan to-avenlo-purple flex items-center justify-center text-xs font-bold">
+                  {item.user.username.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <span className="font-medium">{item.user.username}</span>{' '}
+                    <span className="text-gray-400">{item.action}</span>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

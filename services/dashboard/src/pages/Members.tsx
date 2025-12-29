@@ -1,111 +1,128 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search,
   Filter,
   UserPlus,
   MoreVertical,
-  Shield,
-  Crown,
   Ban,
   MessageSquareOff,
   ExternalLink,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Member {
   id: string;
   username: string;
-  discriminator: string;
-  avatar: string;
+  displayName: string;
+  avatar: string | null;
   roles: string[];
   joinedAt: string;
-  status: 'online' | 'idle' | 'dnd' | 'offline';
-  isAdmin?: boolean;
-  isModerator?: boolean;
+  isBot: boolean;
 }
 
-const mockMembers: Member[] = [
-  {
-    id: '1',
-    username: 'StudioLead',
-    discriminator: '0001',
-    avatar: '',
-    roles: ['Studio Lead', 'Developer', 'Admin'],
-    joinedAt: '2023-01-15',
-    status: 'online',
-    isAdmin: true,
-  },
-  {
-    id: '2',
-    username: 'SeniorDev',
-    discriminator: '1234',
-    avatar: '',
-    roles: ['Active Dev', 'Developer'],
-    joinedAt: '2023-03-22',
-    status: 'online',
-  },
-  {
-    id: '3',
-    username: 'ModeratorPro',
-    discriminator: '5678',
-    avatar: '',
-    roles: ['Moderator'],
-    joinedAt: '2023-06-10',
-    status: 'idle',
-    isModerator: true,
-  },
-  {
-    id: '4',
-    username: 'NewContributor',
-    discriminator: '9012',
-    avatar: '',
-    roles: ['Contributor'],
-    joinedAt: '2024-01-05',
-    status: 'offline',
-  },
-  {
-    id: '5',
-    username: 'ClientUser',
-    discriminator: '3456',
-    avatar: '',
-    roles: ['Verified Client'],
-    joinedAt: '2024-02-18',
-    status: 'dnd',
-  },
-];
-
-const statusColors = {
-  online: 'bg-success',
-  idle: 'bg-warning',
-  dnd: 'bg-danger',
-  offline: 'bg-gray-500',
-};
-
 export default function Members() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRole, setSelectedRole] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const filteredMembers = mockMembers.filter((member) => {
-    const matchesSearch = member.username.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = selectedRole === 'all' || member.roles.some((r) => r.toLowerCase().includes(selectedRole.toLowerCase()));
-    return matchesSearch && matchesRole;
+  const fetchMembers = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    try {
+      const response = await fetch('/api/members', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setMembers(data.members || []);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
+      toast.error('Failed to load members');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // LIVE SYNC - refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => fetchMembers(false), 30000);
+    return () => clearInterval(interval);
+  }, [fetchMembers]);
+
+  const handleAction = async (action: string, memberId: string, memberName: string) => {
+    try {
+      const response = await fetch(`/api/moderation/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: memberId, reason: `Dashboard action` }),
+      });
+      
+      if (response.ok) {
+        toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)} action on ${memberName}`);
+        fetchMembers(true);
+      } else {
+        toast.error(`Failed to ${action} member`);
+      }
+    } catch (error) {
+      toast.error(`Failed to ${action} member`);
+    }
+  };
+
+  const filteredMembers = members.filter((member) => {
+    const matchesSearch = 
+      member.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.displayName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = 
+      filterType === 'all' || 
+      (filterType === 'bots' && member.isBot) || 
+      (filterType === 'humans' && !member.isBot);
+    return matchesSearch && matchesType;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-avenlo-cyan" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Members</h1>
-          <p className="text-gray-400 mt-1">Manage server members and roles</p>
+          <p className="text-gray-400 mt-1">
+            {members.length} members • Updated: {lastUpdated?.toLocaleTimeString() || 'Never'}
+          </p>
         </div>
-        <button className="btn-glow flex items-center gap-2">
-          <UserPlus className="w-5 h-5" />
-          Invite Member
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => fetchMembers(true)} disabled={refreshing} className="btn-icon">
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button className="btn-glow flex items-center gap-2">
+            <UserPlus className="w-5 h-5" />
+            Invite
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+        Live sync enabled - updates every 30s
+      </div>
+
       <div className="glass-card p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
@@ -118,32 +135,15 @@ export default function Members() {
               className="input pl-12"
             />
           </div>
-          <div className="flex gap-2">
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="input w-40"
-            >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="moderator">Moderator</option>
-              <option value="developer">Developer</option>
-              <option value="contributor">Contributor</option>
-              <option value="client">Client</option>
-            </select>
-            <button className="btn-icon">
-              <Filter className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="input w-40">
+            <option value="all">All ({members.length})</option>
+            <option value="humans">Humans ({members.filter(m => !m.isBot).length})</option>
+            <option value="bots">Bots ({members.filter(m => m.isBot).length})</option>
+          </select>
         </div>
       </div>
 
-      {/* Members Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card overflow-hidden"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead className="bg-avenlo-dark/50">
@@ -151,102 +151,70 @@ export default function Members() {
                 <th>Member</th>
                 <th>Roles</th>
                 <th>Joined</th>
-                <th>Status</th>
+                <th>Type</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredMembers.map((member, index) => (
-                <motion.tr
-                  key={member.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-avenlo-cyan to-avenlo-purple flex items-center justify-center text-sm font-bold">
-                          {member.username.charAt(0).toUpperCase()}
+              {filteredMembers.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-8 text-gray-500">No members found</td></tr>
+              ) : (
+                filteredMembers.map((member, index) => (
+                  <motion.tr key={member.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.02 }}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        {member.avatar ? (
+                          <img src={member.avatar} alt={member.username} className="w-10 h-10 rounded-full" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-avenlo-cyan to-avenlo-purple flex items-center justify-center text-sm font-bold">
+                            {member.username.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{member.displayName}</span>
+                            {member.isBot && <span className="badge-purple text-xs">BOT</span>}
+                          </div>
+                          <span className="text-sm text-gray-500">@{member.username}</span>
                         </div>
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-avenlo-card ${statusColors[member.status]}`} />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{member.username}</span>
-                          {member.isAdmin && <Crown className="w-4 h-4 text-warning" />}
-                          {member.isModerator && <Shield className="w-4 h-4 text-avenlo-cyan" />}
-                        </div>
-                        <span className="text-sm text-gray-500">#{member.discriminator}</span>
+                    </td>
+                    <td>
+                      <span className="text-gray-400">{member.roles.length} roles</span>
+                    </td>
+                    <td>
+                      <span className="text-gray-400">{new Date(member.joinedAt).toLocaleDateString()}</span>
+                    </td>
+                    <td>
+                      <span className={member.isBot ? 'text-avenlo-cyan' : 'text-success'}>
+                        {member.isBot ? 'Bot' : 'Human'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        <button className="btn-icon" onClick={() => window.open(`https://discord.com/users/${member.id}`, '_blank')}>
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        {!member.isBot && (
+                          <>
+                            <button className="btn-icon" onClick={() => handleAction('mute', member.id, member.username)}>
+                              <MessageSquareOff className="w-4 h-4" />
+                            </button>
+                            <button className="btn-icon hover:!border-danger/50 hover:!bg-danger/10" onClick={() => handleAction('ban', member.id, member.username)}>
+                              <Ban className="w-4 h-4 text-danger" />
+                            </button>
+                          </>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex flex-wrap gap-1">
-                      {member.roles.slice(0, 2).map((role) => (
-                        <span key={role} className="badge-purple text-xs">
-                          {role}
-                        </span>
-                      ))}
-                      {member.roles.length > 2 && (
-                        <span className="badge text-xs bg-white/5 text-gray-400">
-                          +{member.roles.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <span className="text-gray-400">
-                      {new Date(member.joinedAt).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${statusColors[member.status]}`} />
-                      <span className="capitalize text-gray-400">{member.status}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="btn-icon" title="View Profile">
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                      <button className="btn-icon" title="Mute">
-                        <MessageSquareOff className="w-4 h-4" />
-                      </button>
-                      <button className="btn-icon hover:!border-danger/50 hover:!bg-danger/10" title="Ban">
-                        <Ban className="w-4 h-4 text-danger" />
-                      </button>
-                      <button className="btn-icon">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
+                    </td>
+                  </motion.tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-avenlo-border">
-          <p className="text-sm text-gray-500">
-            Showing {filteredMembers.length} of {mockMembers.length} members
-          </p>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 text-sm bg-avenlo-dark rounded-lg hover:bg-white/5 transition-colors">
-              Previous
-            </button>
-            <button className="px-4 py-2 text-sm bg-avenlo-cyan/20 text-avenlo-cyan rounded-lg">
-              1
-            </button>
-            <button className="px-4 py-2 text-sm bg-avenlo-dark rounded-lg hover:bg-white/5 transition-colors">
-              2
-            </button>
-            <button className="px-4 py-2 text-sm bg-avenlo-dark rounded-lg hover:bg-white/5 transition-colors">
-              Next
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-avenlo-border">
+          <p className="text-sm text-gray-500">Showing {filteredMembers.length} of {members.length} members (from Discord API)</p>
         </div>
       </motion.div>
     </div>

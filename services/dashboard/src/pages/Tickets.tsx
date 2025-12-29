@@ -1,159 +1,133 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Ticket,
   Search,
-  Filter,
-  Plus,
   Clock,
   CheckCircle,
   AlertCircle,
   XCircle,
-  User,
-  MessageSquare,
-  ChevronRight,
+  RefreshCw,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface TicketData {
   id: string;
-  ticketId: string;
+  number: string;
+  userId: string;
+  userName: string;
+  status: string;
   subject: string;
-  category: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  creator: {
-    id: string;
-    username: string;
-    avatar?: string;
-  };
-  assignee?: {
-    id: string;
-    username: string;
-  };
   createdAt: string;
-  lastActivity: string;
-  messageCount: number;
+  closedAt?: string;
 }
 
-const mockTickets: TicketData[] = [
-  {
-    id: '1',
-    ticketId: '#0042',
-    subject: 'Payment issue with project',
-    category: 'Billing',
-    status: 'open',
-    priority: 'high',
-    creator: { id: '1', username: 'ClientPro' },
-    createdAt: '2024-12-29T08:30:00',
-    lastActivity: '10 minutes ago',
-    messageCount: 5,
-  },
-  {
-    id: '2',
-    ticketId: '#0041',
-    subject: 'Need help with API integration',
-    category: 'Technical',
-    status: 'in_progress',
-    priority: 'medium',
-    creator: { id: '2', username: 'DevUser' },
-    assignee: { id: 'a1', username: 'SeniorDev' },
-    createdAt: '2024-12-28T14:20:00',
-    lastActivity: '2 hours ago',
-    messageCount: 12,
-  },
-  {
-    id: '3',
-    ticketId: '#0040',
-    subject: 'Feature request: Dark mode',
-    category: 'Feature Request',
-    status: 'resolved',
-    priority: 'low',
-    creator: { id: '3', username: 'NiceUser' },
-    assignee: { id: 'a2', username: 'Developer' },
-    createdAt: '2024-12-27T10:00:00',
-    lastActivity: '1 day ago',
-    messageCount: 8,
-  },
-  {
-    id: '4',
-    ticketId: '#0039',
-    subject: 'Urgent: Server downtime',
-    category: 'Technical',
-    status: 'closed',
-    priority: 'urgent',
-    creator: { id: '4', username: 'CriticalClient' },
-    assignee: { id: 'a1', username: 'SeniorDev' },
-    createdAt: '2024-12-26T22:45:00',
-    lastActivity: '2 days ago',
-    messageCount: 24,
-  },
-];
-
-const statusConfig = {
+const statusConfig: Record<string, any> = {
   open: { icon: AlertCircle, color: 'text-warning', bgColor: 'bg-warning/20', label: 'Open' },
   in_progress: { icon: Clock, color: 'text-info', bgColor: 'bg-info/20', label: 'In Progress' },
   resolved: { icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/20', label: 'Resolved' },
   closed: { icon: XCircle, color: 'text-gray-400', bgColor: 'bg-gray-500/20', label: 'Closed' },
 };
 
-const priorityConfig = {
-  low: { color: 'text-gray-400', bgColor: 'bg-gray-500/20' },
-  medium: { color: 'text-info', bgColor: 'bg-info/20' },
-  high: { color: 'text-warning', bgColor: 'bg-warning/20' },
-  urgent: { color: 'text-danger', bgColor: 'bg-danger/20' },
-};
-
 export default function Tickets() {
+  const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const fetchTickets = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    try {
+      const response = await fetch('/api/tickets', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setTickets(data.tickets || []);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+      toast.error('Failed to load tickets');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  // LIVE SYNC - refresh every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(() => fetchTickets(false), 15000);
+    return () => clearInterval(interval);
+  }, [fetchTickets]);
 
   const stats = {
-    total: 156,
-    open: 12,
-    inProgress: 8,
-    resolved: 136,
+    total: tickets.length,
+    open: tickets.filter(t => t.status === 'open').length,
+    inProgress: tickets.filter(t => t.status === 'in_progress').length,
+    resolved: tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length,
   };
+
+  const filteredTickets = tickets.filter((ticket) => {
+    const matchesSearch = 
+      ticket.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.number.includes(searchQuery);
+    const matchesStatus = filterStatus === 'all' || ticket.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-avenlo-cyan" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Tickets</h1>
-          <p className="text-gray-400 mt-1">Manage support tickets and requests</p>
+          <p className="text-gray-400 mt-1">
+            {tickets.length} total tickets • Updated: {lastUpdated?.toLocaleTimeString() || 'Never'}
+          </p>
         </div>
-        <button className="btn-glow flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          Create Ticket
+        <button onClick={() => fetchTickets(true)} disabled={refreshing} className="btn-icon">
+          <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+        Live sync enabled - updates every 15s
+      </div>
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Tickets', value: stats.total, icon: Ticket, color: 'text-avenlo-cyan', bg: 'bg-avenlo-cyan/10' },
-          { label: 'Open', value: stats.open, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10' },
-          { label: 'In Progress', value: stats.inProgress, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
-          { label: 'Resolved', value: stats.resolved, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
-        ].map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="glass-card-hover p-5"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">{stat.label}</p>
-                <p className="text-3xl font-bold mt-1">{stat.value}</p>
-              </div>
-              <div className={`p-3 rounded-xl ${stat.bg}`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
-              </div>
-            </div>
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
+          <div className="text-2xl font-bold">{stats.total}</div>
+          <div className="text-gray-400 text-sm">Total Tickets</div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-4">
+          <div className="text-2xl font-bold text-warning">{stats.open}</div>
+          <div className="text-gray-400 text-sm">Open</div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-4">
+          <div className="text-2xl font-bold text-info">{stats.inProgress}</div>
+          <div className="text-gray-400 text-sm">In Progress</div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-4">
+          <div className="text-2xl font-bold text-success">{stats.resolved}</div>
+          <div className="text-gray-400 text-sm">Resolved</div>
+        </motion.div>
       </div>
 
       {/* Filters */}
@@ -169,87 +143,62 @@ export default function Tickets() {
               className="input pl-12"
             />
           </div>
-          <div className="flex gap-2">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="input w-40"
-            >
-              <option value="all">All Status</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-            <button className="btn-icon">
-              <Filter className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input w-40">
+            <option value="all">All Status</option>
+            <option value="open">Open</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
         </div>
       </div>
 
       {/* Tickets List */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="glass-card overflow-hidden"
-      >
-        <div className="divide-y divide-avenlo-border">
-          {mockTickets.map((ticket, index) => {
-            const status = statusConfig[ticket.status];
-            const priority = priorityConfig[ticket.priority];
-            return (
-              <motion.div
-                key={ticket.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="p-4 hover:bg-white/5 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-xl ${status.bgColor}`}>
-                    <status.icon className={`w-5 h-5 ${status.color}`} />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-avenlo-cyan font-mono text-sm">{ticket.ticketId}</span>
-                      <span className={`badge ${status.bgColor} ${status.color}`}>
-                        {status.label}
-                      </span>
-                      <span className={`badge ${priority.bgColor} ${priority.color} capitalize`}>
-                        {ticket.priority}
-                      </span>
-                    </div>
-                    <h3 className="font-medium truncate">{ticket.subject}</h3>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3" />
-                        {ticket.creator.username}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" />
-                        {ticket.messageCount} messages
-                      </span>
-                      <span>{ticket.lastActivity}</span>
-                    </div>
-                  </div>
-
-                  {ticket.assignee && (
-                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-avenlo-dark rounded-lg">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-avenlo-purple to-avenlo-pink flex items-center justify-center text-xs font-bold">
-                        {ticket.assignee.username.charAt(0)}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card overflow-hidden">
+        {filteredTickets.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Ticket className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No tickets found</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-avenlo-border">
+            {filteredTickets.map((ticket, index) => {
+              const config = statusConfig[ticket.status] || statusConfig.open;
+              const StatusIcon = config.icon;
+              return (
+                <motion.div
+                  key={ticket.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="p-4 hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2 rounded-lg ${config.bgColor}`}>
+                        <StatusIcon className={`w-5 h-5 ${config.color}`} />
                       </div>
-                      <span className="text-sm text-gray-400">{ticket.assignee.username}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-gray-500">#{ticket.number}</span>
+                          <span className="font-medium">{ticket.subject}</span>
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          by {ticket.userName} • {new Date(ticket.createdAt).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
-                  )}
-
-                  <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-avenlo-cyan group-hover:translate-x-1 transition-all" />
-                </div>
-              </motion.div>
-            );
-          })}
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${config.bgColor} ${config.color}`}>{config.label}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+        <div className="px-6 py-4 border-t border-avenlo-border">
+          <p className="text-sm text-gray-500">Showing {filteredTickets.length} of {tickets.length} tickets (from MongoDB)</p>
         </div>
       </motion.div>
     </div>
