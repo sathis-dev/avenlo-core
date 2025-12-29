@@ -10,21 +10,24 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy dashboard package.json
+# Copy package.json and remove workspace dependency
 COPY package.json ./
+RUN sed -i '/"@avenlo\/shared": "workspace:\*",/d' package.json
 
-# Remove workspace dependency and install
-RUN sed -i '/"@avenlo\/shared": "workspace:\*"/d' package.json && \
-    pnpm install
+# Install dependencies
+RUN pnpm install
 
 # Copy all source files
 COPY . .
 
-# Build frontend
-RUN pnpm build || echo "Frontend build completed"
+# Build frontend (Vite) - this creates /app/dist
+RUN npm run build
 
-# Build server
-RUN pnpm build:server || echo "Server build completed"
+# Build server (TypeScript) - this creates /app/dist-server
+RUN npm run build:server
+
+# Debug: list what was built
+RUN ls -la /app/ && ls -la /app/dist || echo "No dist folder" && ls -la /app/dist-server || echo "No dist-server folder"
 
 # ====================================
 # Production Image
@@ -36,12 +39,12 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package.json (modified without workspace dep)
+# Copy package.json and remove workspace dep
 COPY --from=builder /app/package.json ./
+RUN sed -i '/"@avenlo\/shared": "workspace:\*",/d' package.json
 
-# Remove workspace dep and install prod only
-RUN sed -i '/"@avenlo\/shared": "workspace:\*"/d' package.json && \
-    pnpm install --prod
+# Install production dependencies only
+RUN pnpm install --prod
 
 # Copy built files
 COPY --from=builder /app/dist ./dist
@@ -51,10 +54,6 @@ COPY --from=builder /app/dist-server ./dist-server
 ENV PORT=3001
 ENV NODE_ENV=production
 EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
 # Start
 CMD ["node", "dist-server/index.js"]
