@@ -122,10 +122,15 @@ passport.deserializeUser((user: any, done) => {
 });
 
 // Determine callback URL dynamically
+console.log('🔍 DISCORD_CALLBACK_URL env:', process.env.DISCORD_CALLBACK_URL);
+console.log('🔍 RAILWAY_PUBLIC_DOMAIN env:', process.env.RAILWAY_PUBLIC_DOMAIN);
+
 const CALLBACK_URL = process.env.DISCORD_CALLBACK_URL 
   || (process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/auth/discord/callback`
       : 'http://localhost:3001/auth/discord/callback');
+
+console.log('🔍 Final CALLBACK_URL:', CALLBACK_URL);
 
 // Check for required Discord OAuth environment variables
 if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
