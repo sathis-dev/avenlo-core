@@ -22,6 +22,8 @@ import {
   GuildBan,
   Role,
   GuildChannel,
+  DMChannel,
+  NonThreadGuildBasedChannel,
 } from 'discord.js';
 import { createLogger, getRedisClient, EventTypes } from '@avenlo/shared';
 import { loadCommands, Command } from './commands';
@@ -109,9 +111,14 @@ export class GatewayClient extends Client {
     // ====================================
     // ANTI-NUKE PROTECTION
     // ====================================
-    this.on(Events.ChannelDelete, async (channel: GuildChannel) => {
+    this.on(Events.ChannelDelete, async (channel: DMChannel | NonThreadGuildBasedChannel) => {
       try {
-        await ServerProtection.handleChannelDelete(channel);
+        if (!('guild' in channel) || !channel.guild) return;
+        // Get executor from audit log
+        const auditLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: 12 }); // CHANNEL_DELETE
+        const entry = auditLogs.entries.first();
+        const executor = entry?.executor ? await this.users.fetch(entry.executor.id) : null;
+        await ServerProtection.handleChannelDelete(channel as GuildChannel, executor);
       } catch (error) {
         logger.error('Channel delete handler error:', error);
       }
@@ -119,7 +126,11 @@ export class GatewayClient extends Client {
 
     this.on(Events.GuildRoleDelete, async (role: Role) => {
       try {
-        await ServerProtection.handleRoleDelete(role);
+        // Get executor from audit log
+        const auditLogs = await role.guild.fetchAuditLogs({ limit: 1, type: 32 }); // ROLE_DELETE
+        const entry = auditLogs.entries.first();
+        const executor = entry?.executor ? await this.users.fetch(entry.executor.id) : null;
+        await ServerProtection.handleRoleDelete(role, executor);
       } catch (error) {
         logger.error('Role delete handler error:', error);
       }
@@ -127,7 +138,11 @@ export class GatewayClient extends Client {
 
     this.on(Events.GuildBanAdd, async (ban: GuildBan) => {
       try {
-        await ServerProtection.handleMassBan(ban);
+        // Get executor from audit log
+        const auditLogs = await ban.guild.fetchAuditLogs({ limit: 1, type: 22 }); // MEMBER_BAN_ADD
+        const entry = auditLogs.entries.first();
+        const executor = entry?.executor ? await this.users.fetch(entry.executor.id) : null;
+        await ServerProtection.handleMassBan(ban.guild, executor);
       } catch (error) {
         logger.error('Ban handler error:', error);
       }
@@ -183,10 +198,13 @@ export class GatewayClient extends Client {
     const guild = member.guild;
     
     // Check for raid
-    const isRaid = await ServerProtection.trackJoin(guild);
-    if (isRaid) {
+    const raidCheck = ServerProtection.trackJoin(member);
+    if (raidCheck.isRaid) {
       logger.warn(`⚠️ RAID DETECTED in ${guild.name}! Handling...`);
-      await ServerProtection.handlePotentialRaid(guild, member);
+      const logChannel = guild.channels.cache.find(
+        ch => ch.name.includes('mod-log') && ch.isTextBased()
+      ) as TextChannel | undefined;
+      await ServerProtection.handlePotentialRaid(guild, logChannel);
       return;
     }
     
@@ -199,7 +217,8 @@ export class GatewayClient extends Client {
     
     if (welcomeChannel && welcomeChannel.isTextBased()) {
       // Build and send welcome message
-      const { embed, row } = await WelcomeHandlers.buildWelcomeEmbed(member);
+      const embed = WelcomeHandlers.buildWelcomeEmbed(member);
+      const row = WelcomeHandlers.buildWelcomeButtons();
       await (welcomeChannel as TextChannel).send({
         content: `${member}`,
         embeds: [embed],

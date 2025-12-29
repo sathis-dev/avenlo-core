@@ -703,7 +703,7 @@ async function handleViolation(message: Message, result: ModerationResult): Prom
 // MEMBER JOIN HANDLER (RAID PROTECTION)
 // ====================================
 
-export async function handleMemberJoin(member: GuildMember): Promise<{ isRaid: boolean }> {
+export async function handleMemberJoinRaidCheck(member: GuildMember): Promise<{ isRaid: boolean }> {
   const guild = member.guild;
   const logChannel = guild.channels.cache.get(MODERATION_CONFIG.logChannelId) as TextChannel;
   
@@ -738,7 +738,7 @@ export async function handleMemberJoin(member: GuildMember): Promise<{ isRaid: b
 
 export const AIModerationHandlers = {
   handleMessage,
-  handleMemberJoin,
+  handleMemberJoinRaidCheck,
   analyzeContent,
   checkSpam,
   checkRaid,

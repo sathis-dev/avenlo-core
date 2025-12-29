@@ -411,6 +411,7 @@ export const WelcomeHandlers = {
   handleMemberLeave,
   handleWelcomeButton,
   buildWelcomeEmbed,
+  buildWelcomeButtons,
   buildGoodbyeEmbed,
   sendWelcomeDM,
   assignAutoRoles,
