@@ -366,10 +366,28 @@ try {
   console.log(`📁 Could not list directories:`, e);
 }
 
+// Serve index.html for root path explicitly
+app.get('/', (req, res) => {
+  const indexPath = path.join(staticPath, 'index.html');
+  console.log(`📥 Root request, serving: ${indexPath}`);
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(500).send('index.html not found');
+  }
+});
+
 app.use(express.static(staticPath));
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`📥 Request: ${req.method} ${req.path}`);
+  next();
+});
 
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res, next) => {
+  console.log(`🔄 SPA fallback for: ${req.path}`);
   // Skip API and auth routes
   if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
     return next();
