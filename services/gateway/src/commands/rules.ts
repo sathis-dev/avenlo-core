@@ -12,13 +12,39 @@ import {
   ButtonStyle,
   TextChannel,
   PermissionFlagsBits,
+  Guild,
 } from 'discord.js';
 import { createLogger, AvenloColors, AvenloBranding } from '@avenlo/shared';
 
 const logger = createLogger('rules-command');
 
-// Server channels
-const RULES_CHANNEL_ID = '1382631780825305088';
+// ====================================
+// CHANNEL FINDER
+// ====================================
+
+function findChannel(guild: Guild, name: string): string {
+  const channel = guild.channels.cache.find(
+    c => c.name.toLowerCase().replace(/-/g, '') === name.toLowerCase().replace(/-/g, '') ||
+         c.name.toLowerCase() === name.toLowerCase()
+  );
+  return channel ? `<#${channel.id}>` : `#${name}`;
+}
+
+function getChannelLinks(guild: Guild) {
+  return {
+    welcome: findChannel(guild, 'welcome'),
+    rules: findChannel(guild, 'rules'),
+    information: findChannel(guild, 'information'),
+    roles: findChannel(guild, 'roles'),
+    studioNews: findChannel(guild, 'studio-news'),
+    ourWork: findChannel(guild, 'our-work'),
+    activeProjects: findChannel(guild, 'active-projects'),
+    tickets: findChannel(guild, 'tickets'),
+    faq: findChannel(guild, 'faq-knowledge-base'),
+    bugReports: findChannel(guild, 'bug-reports'),
+    suggestions: findChannel(guild, 'suggestions'),
+  };
+}
 
 // ====================================
 // RULES CONTENT
@@ -104,25 +130,27 @@ function buildRulesEmbed(rulesSet: typeof RULES, startNum: number): EmbedBuilder
   return embed;
 }
 
-function buildQuickLinksEmbed(): EmbedBuilder {
+function buildQuickLinksEmbed(guild: Guild): EmbedBuilder {
+  const ch = getChannelLinks(guild);
+  
   return new EmbedBuilder()
     .setColor(AvenloColors.GREEN)
     .setTitle('🔗 Quick Navigation')
     .setDescription(
       `**📢 Welcome Center**\n` +
-      `> <#1382631780825305085> — Welcome new members\n` +
-      `> <#1382631780825305088> — Server rules\n` +
-      `> <#1382631780825305089> — Server information\n` +
-      `> <#1382631780825305090> — Self-assign roles\n\n` +
+      `> ${ch.welcome} — Welcome new members\n` +
+      `> ${ch.rules} — Server rules\n` +
+      `> ${ch.information} — Server information\n` +
+      `> ${ch.roles} — Self-assign roles\n\n` +
       `**🎨 Avenlo Showcase**\n` +
-      `> <#1382631782087860227> — Studio announcements\n` +
-      `> <#1382631782087860228> — Our completed work\n` +
-      `> <#1382631782087860229> — Active projects\n\n` +
+      `> ${ch.studioNews} — Studio announcements\n` +
+      `> ${ch.ourWork} — Our completed work\n` +
+      `> ${ch.activeProjects} — Active projects\n\n` +
       `**📞 Support Hub**\n` +
-      `> <#1382631783031468035> — Support tickets\n` +
-      `> <#1382631783031468036> — FAQ & Knowledge Base\n` +
-      `> <#1382631783031468037> — Bug reports\n` +
-      `> <#1382631783031468038> — Suggestions`
+      `> ${ch.tickets} — Support tickets\n` +
+      `> ${ch.faq} — FAQ & Knowledge Base\n` +
+      `> ${ch.bugReports} — Bug reports\n` +
+      `> ${ch.suggestions} — Suggestions`
     );
 }
 
@@ -144,13 +172,15 @@ function buildConsequencesEmbed(): EmbedBuilder {
     );
 }
 
-function buildFooterEmbed(): EmbedBuilder {
+function buildFooterEmbed(guild: Guild): EmbedBuilder {
+  const ch = getChannelLinks(guild);
+  
   return new EmbedBuilder()
     .setColor(AvenloColors.PURPLE)
     .setDescription(
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✅ **By being in this server, you agree to these rules.**\n\n` +
-      `Questions? Create a ticket in <#1382631783031468035>\n\n` +
+      `Questions? Create a ticket in ${ch.tickets}\n\n` +
       `*Last updated: December 2025*`
     )
     .setFooter({
@@ -199,12 +229,20 @@ export const rulesCommand = {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      // Get the rules channel
-      const rulesChannel = interaction.guild?.channels.cache.get(RULES_CHANNEL_ID) as TextChannel;
+      const guild = interaction.guild;
+      if (!guild) {
+        await interaction.editReply({ content: '❌ This command can only be used in a server.' });
+        return;
+      }
+
+      // Find the rules channel dynamically by name
+      const rulesChannel = guild.channels.cache.find(
+        c => c.name.toLowerCase() === 'rules'
+      ) as TextChannel;
       
       if (!rulesChannel) {
         await interaction.editReply({
-          content: '❌ Rules channel not found! Please check the channel ID.',
+          content: '❌ Rules channel not found! Please create a channel named `rules`.',
         });
         return;
       }
@@ -224,14 +262,14 @@ export const rulesCommand = {
         }
       }
 
-      // Build all embeds
+      // Build all embeds with dynamic channel links
       const embeds = [
         buildHeaderEmbed(),
         buildRulesEmbed(RULES.slice(0, 4), 1),  // Rules 1-4
         buildRulesEmbed(RULES.slice(4), 5),     // Rules 5-8
-        buildQuickLinksEmbed(),
+        buildQuickLinksEmbed(guild),
         buildConsequencesEmbed(),
-        buildFooterEmbed(),
+        buildFooterEmbed(guild),
       ];
 
       // Send header embed
@@ -256,7 +294,7 @@ export const rulesCommand = {
       logger.info(`Rules posted to #${rulesChannel.name} by ${interaction.user.tag}`);
 
       await interaction.editReply({
-        content: `✅ **Rules posted successfully!**\n\nCheck <#${RULES_CHANNEL_ID}> to see the beautiful rules display.`,
+        content: `✅ **Rules posted successfully!**\n\nCheck <#${rulesChannel.id}> to see the beautiful rules display.`,
       });
 
     } catch (error) {

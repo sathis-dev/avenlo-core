@@ -19,30 +19,46 @@ import { createLogger, AvenloColors, AvenloBranding } from '@avenlo/shared';
 const logger = createLogger('welcome-system');
 
 // ====================================
-// CHANNEL IDS
+// DYNAMIC CHANNEL FINDER
 // ====================================
-const CHANNELS = {
-  welcome: '1382631780825305085',
-  rules: '1382631780825305088',
-  information: '1382631780825305089',
-  roles: '1382631780825305090',
-  studioNews: '1382631782087860227',
-  ourWork: '1382631782087860228',
-  activeProjects: '1382631782087860229',
-  tickets: '1382631783031468035',
-  faqKnowledgeBase: '1382631783031468036',
-  bugReports: '1382631783031468037',
-  suggestions: '1382631783031468038',
-};
+
+function findChannel(guild: Guild, name: string): string {
+  const channel = guild.channels.cache.find(
+    c => c.name.toLowerCase().replace(/-/g, '') === name.toLowerCase().replace(/-/g, '') ||
+         c.name.toLowerCase() === name.toLowerCase()
+  );
+  return channel ? `<#${channel.id}>` : `#${name}`;
+}
+
+function findChannelId(guild: Guild, name: string): string | null {
+  const channel = guild.channels.cache.find(
+    c => c.name.toLowerCase().replace(/-/g, '') === name.toLowerCase().replace(/-/g, '') ||
+         c.name.toLowerCase() === name.toLowerCase()
+  );
+  return channel?.id || null;
+}
+
+function getChannelLinks(guild: Guild) {
+  return {
+    welcome: findChannel(guild, 'welcome'),
+    rules: findChannel(guild, 'rules'),
+    information: findChannel(guild, 'information'),
+    roles: findChannel(guild, 'roles'),
+    studioNews: findChannel(guild, 'studio-news'),
+    ourWork: findChannel(guild, 'our-work'),
+    activeProjects: findChannel(guild, 'active-projects'),
+    tickets: findChannel(guild, 'tickets'),
+    faq: findChannel(guild, 'faq-knowledge-base'),
+    bugReports: findChannel(guild, 'bug-reports'),
+    suggestions: findChannel(guild, 'suggestions'),
+  };
+}
 
 // ====================================
 // CONFIGURATION
 // ====================================
 
 export const WELCOME_CONFIG = {
-  // Channel ID for welcome messages
-  welcomeChannelId: CHANNELS.welcome,
-  
   // Auto-assign roles on join
   autoRoles: [
     // Add role IDs that should be auto-assigned
@@ -108,6 +124,7 @@ export function buildWelcomeEmbed(member: GuildMember): EmbedBuilder {
   const memberCount = guild.memberCount;
   const accountAge = getAccountAgeWarning(member.user.createdAt);
   const milestone = getMemberMilestone(memberCount);
+  const ch = getChannelLinks(guild);
   
   // Create stunning welcome embed - optimized for mobile & desktop
   const embed = new EmbedBuilder()
@@ -129,17 +146,17 @@ export function buildWelcomeEmbed(member: GuildMember): EmbedBuilder {
       {
         name: '📋 Get Started',
         value: 
-          `**1.** Read rules → <#${CHANNELS.rules}>\n` +
-          `**2.** Get roles → <#${CHANNELS.roles}>\n` +
-          `**3.** Server info → <#${CHANNELS.information}>`,
+          `**1.** Read rules → ${ch.rules}\n` +
+          `**2.** Get roles → ${ch.roles}\n` +
+          `**3.** Server info → ${ch.information}`,
         inline: true,
       },
       {
         name: '🎨 Explore',
         value: 
-          `**📢** <#${CHANNELS.studioNews}>\n` +
-          `**🖼️** <#${CHANNELS.ourWork}>\n` +
-          `**🚀** <#${CHANNELS.activeProjects}>`,
+          `**📢** ${ch.studioNews}\n` +
+          `**🖼️** ${ch.ourWork}\n` +
+          `**🚀** ${ch.activeProjects}`,
         inline: true,
       },
       {
@@ -170,7 +187,7 @@ export function buildWelcomeEmbed(member: GuildMember): EmbedBuilder {
       },
       {
         name: '🎫 Need Help?',
-        value: `Create a ticket in <#${CHANNELS.tickets}>\nOur team typically responds within 30 mins!`,
+        value: `Create a ticket in ${ch.tickets}\nOur team typically responds within 30 mins!`,
         inline: false,
       }
     )
@@ -342,8 +359,10 @@ export async function assignAutoRoles(member: GuildMember): Promise<Role[]> {
 export async function handleMemberJoin(member: GuildMember): Promise<void> {
   const guild = member.guild;
   
-  // Send welcome message in channel
-  const welcomeChannel = guild.channels.cache.get(WELCOME_CONFIG.welcomeChannelId) as TextChannel;
+  // Find welcome channel dynamically
+  const welcomeChannel = guild.channels.cache.find(
+    c => c.name.toLowerCase() === 'welcome'
+  ) as TextChannel;
   
   if (welcomeChannel) {
     const embed = buildWelcomeEmbed(member);
@@ -373,8 +392,10 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
 export async function handleMemberLeave(member: GuildMember): Promise<void> {
   const guild = member.guild;
   
-  // Send goodbye message
-  const welcomeChannel = guild.channels.cache.get(WELCOME_CONFIG.welcomeChannelId) as TextChannel;
+  // Find welcome channel dynamically for goodbye message
+  const welcomeChannel = guild.channels.cache.find(
+    c => c.name.toLowerCase() === 'welcome'
+  ) as TextChannel;
   
   if (welcomeChannel) {
     const embed = buildGoodbyeEmbed(member);
@@ -393,6 +414,14 @@ export async function handleWelcomeButton(
   action: string
 ): Promise<void> {
   const member = interaction.member as GuildMember;
+  const guild = interaction.guild as Guild;
+  const ch = getChannelLinks(guild);
+  
+  // Get channel IDs for link buttons
+  const rulesChannelId = findChannelId(guild, 'rules');
+  const rolesChannelId = findChannelId(guild, 'roles');
+  const ticketsChannelId = findChannelId(guild, 'tickets');
+  const faqChannelId = findChannelId(guild, 'faq-knowledge-base');
   
   switch (action) {
     case 'rules':
@@ -400,7 +429,7 @@ export async function handleWelcomeButton(
         .setColor(AvenloColors.PURPLE)
         .setTitle('📜 Community Rules')
         .setDescription(
-          `**Read our full rules in <#${CHANNELS.rules}>**\n\n` +
+          `**Read our full rules in ${ch.rules}**\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
           `**Quick Summary:**\n\n` +
           `> 🤝 **Respect** — Be kind to everyone\n` +
@@ -414,14 +443,17 @@ export async function handleWelcomeButton(
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      const rulesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setLabel('📜 View Full Rules')
-          .setStyle(ButtonStyle.Link)
-          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.rules}`)
-      );
-      
-      await interaction.reply({ embeds: [rulesEmbed], components: [rulesButton], ephemeral: true });
+      if (rulesChannelId) {
+        const rulesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel('📜 View Full Rules')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${interaction.guildId}/${rulesChannelId}`)
+        );
+        await interaction.reply({ embeds: [rulesEmbed], components: [rulesButton], ephemeral: true });
+      } else {
+        await interaction.reply({ embeds: [rulesEmbed], ephemeral: true });
+      }
       break;
       
     case 'roles':
@@ -429,7 +461,7 @@ export async function handleWelcomeButton(
         .setColor(AvenloColors.CYAN)
         .setTitle('🎭 Customize Your Profile')
         .setDescription(
-          `**Get your roles in <#${CHANNELS.roles}>**\n\n` +
+          `**Get your roles in ${ch.roles}**\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
           `**Available Roles:**\n\n` +
           `> 🎨 **Color Roles** — Stand out with custom colors\n` +
@@ -441,14 +473,17 @@ export async function handleWelcomeButton(
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      const rolesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setLabel('🎭 Get Roles')
-          .setStyle(ButtonStyle.Link)
-          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.roles}`)
-      );
-      
-      await interaction.reply({ embeds: [rolesEmbed], components: [rolesButton], ephemeral: true });
+      if (rolesChannelId) {
+        const rolesButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel('🎭 Get Roles')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${interaction.guildId}/${rolesChannelId}`)
+        );
+        await interaction.reply({ embeds: [rolesEmbed], components: [rolesButton], ephemeral: true });
+      } else {
+        await interaction.reply({ embeds: [rolesEmbed], ephemeral: true });
+      }
       break;
       
     case 'help':
@@ -459,33 +494,45 @@ export async function handleWelcomeButton(
           `**We're here to help!**\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
           `**🎫 Support Ticket**\n` +
-          `> Create a ticket in <#${CHANNELS.tickets}>\n` +
+          `> Create a ticket in ${ch.tickets}\n` +
           `> *Average response: ~30 mins*\n\n` +
           `**📖 Knowledge Base**\n` +
-          `> Check our FAQ at <#${CHANNELS.faqKnowledgeBase}>\n` +
+          `> Check our FAQ at ${ch.faq}\n` +
           `> *Common questions answered*\n\n` +
           `**🐛 Bug Reports**\n` +
-          `> Report issues in <#${CHANNELS.bugReports}>\n` +
+          `> Report issues in ${ch.bugReports}\n` +
           `> *Help us improve*\n\n` +
           `**💡 Suggestions**\n` +
-          `> Share ideas in <#${CHANNELS.suggestions}>\n` +
+          `> Share ideas in ${ch.suggestions}\n` +
           `> *We love feedback*\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━`
         )
         .setFooter({ text: AvenloBranding.footer });
       
-      const helpButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setLabel('🎫 Create Ticket')
-          .setStyle(ButtonStyle.Link)
-          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.tickets}`),
-        new ButtonBuilder()
-          .setLabel('📖 FAQ')
-          .setStyle(ButtonStyle.Link)
-          .setURL(`https://discord.com/channels/${interaction.guildId}/${CHANNELS.faqKnowledgeBase}`)
-      );
+      const helpButtonComponents: ButtonBuilder[] = [];
+      if (ticketsChannelId) {
+        helpButtonComponents.push(
+          new ButtonBuilder()
+            .setLabel('🎫 Create Ticket')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${interaction.guildId}/${ticketsChannelId}`)
+        );
+      }
+      if (faqChannelId) {
+        helpButtonComponents.push(
+          new ButtonBuilder()
+            .setLabel('📖 FAQ')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${interaction.guildId}/${faqChannelId}`)
+        );
+      }
       
-      await interaction.reply({ embeds: [helpEmbed], components: [helpButtons], ephemeral: true });
+      if (helpButtonComponents.length > 0) {
+        const helpButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(...helpButtonComponents);
+        await interaction.reply({ embeds: [helpEmbed], components: [helpButtons], ephemeral: true });
+      } else {
+        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+      }
       break;
   }
 }
