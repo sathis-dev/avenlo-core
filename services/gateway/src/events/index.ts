@@ -2,13 +2,37 @@
 // AVENLO CORE - EVENT LOADER
 // ====================================
 
-import { Client } from 'discord.js';
+import { Client, Events, GuildMember, Role } from 'discord.js';
 import { createLogger, getRedisClient, EventTypes } from '@avenlo/shared';
+import { ticketController } from '../controllers/TicketController';
 
 const logger = createLogger('gateway-events');
 
 export async function loadEvents(client: Client): Promise<void> {
   const redis = getRedisClient();
+
+  // ====================================
+  // DISCORD EVENTS
+  // ====================================
+
+  // Verified Client Role Assignment - White-Glove Onboarding
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    const verifiedClientRoleId = process.env.ROLE_VERIFIED_CLIENT;
+    if (!verifiedClientRoleId) return;
+
+    const hadRole = oldMember.roles.cache.has(verifiedClientRoleId);
+    const hasRole = newMember.roles.cache.has(verifiedClientRoleId);
+
+    // Role was just added
+    if (!hadRole && hasRole) {
+      logger.info(`Verified Client role assigned to ${newMember.user.tag}`);
+      await ticketController.onVerifiedClientJoin(newMember);
+    }
+  });
+
+  // ====================================
+  // REDIS EVENT BUS SUBSCRIPTIONS
+  // ====================================
 
   // Subscribe to Architect events
   await redis.subscribe(EventTypes.ARCHITECT_BRIEF_GENERATED, async (event) => {

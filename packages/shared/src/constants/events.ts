@@ -31,8 +31,16 @@ export const EventTypes = {
   // Ledger Events (Economy)
   LEDGER_CREDIT_EARNED: 'ledger:credit:earned',
   LEDGER_CREDIT_SPENT: 'ledger:credit:spent',
+  LEDGER_CREDITS_EARN: 'ledger:credits:earn',
   LEDGER_ROLE_UPDATE: 'ledger:role:update',
   LEDGER_LEADERBOARD_UPDATE: 'ledger:leaderboard:update',
+  
+  // Ticket Events
+  TICKET_CREATED: 'ticket:created',
+  TICKET_CLAIMED: 'ticket:claimed',
+  TICKET_RESOLVED: 'ticket:resolved',
+  TICKET_CLOSED: 'ticket:closed',
+  TICKET_ESCALATED: 'ticket:escalated',
   
   // System Events
   SYSTEM_ERROR: 'system:error',

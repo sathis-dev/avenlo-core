@@ -26,6 +26,15 @@ export const AvenloColors = {
   
   /** Offline / Inactive */
   GRAY: 0x99AAB5,
+  
+  /** Dark embed background */
+  DARK_EMBED: 0x2B2D31,
+  
+  /** Purple for special features */
+  PURPLE: 0x9B59B6,
+  
+  /** White for neutral embeds */
+  WHITE: 0xFFFFFF,
 } as const;
 
 /**
@@ -104,6 +113,15 @@ export const AvenloEmojis = {
   BELL: '🔔',
   SPEECH: '💬',
   MAIL: '📧',
+  
+  // Ticket System
+  TICKET: '🎫',
+  BOOK: '📚',
+  TOOLS: '🔧',
+  CREDIT_CARD: '💳',
+  LIGHTBULB: '💡',
+  BUG: '🐛',
+  PENCIL: '📝',
 } as const;
 
 /**

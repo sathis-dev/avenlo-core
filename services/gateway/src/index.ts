@@ -2,7 +2,12 @@
 // AVENLO CORE - GATEWAY SERVICE ENTRY
 // ====================================
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from project root
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { GatewayClient } from './client';
 import { initRedis, initMongo, initEncryption, createLogger } from '@avenlo/shared';
 import { startHealthServer } from './health';

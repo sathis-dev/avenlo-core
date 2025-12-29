@@ -13,6 +13,7 @@ import { leaderboardCommand } from './leaderboard';
 import { profileCommand } from './profile';
 import { helpCommand } from './help';
 import { adminCommand } from './admin';
+import { ticketCommand } from './ticket';
 
 const logger = createLogger('gateway-commands');
 
@@ -29,6 +30,7 @@ const commands: Command[] = [
   profileCommand,
   helpCommand,
   adminCommand,
+  ticketCommand,
 ];
 
 export async function loadCommands(): Promise<Collection<string, Command>> {
