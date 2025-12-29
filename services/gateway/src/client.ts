@@ -16,11 +16,20 @@ import {
   StringSelectMenuInteraction,
   UserSelectMenuInteraction,
   TextChannel,
+  Message,
+  GuildMember,
+  PartialGuildMember,
+  GuildBan,
+  Role,
+  GuildChannel,
 } from 'discord.js';
 import { createLogger, getRedisClient, EventTypes } from '@avenlo/shared';
 import { loadCommands, Command } from './commands';
 import { loadEvents } from './events';
 import { TicketHandlers } from './handlers/TicketHandler';
+import { AIModerationHandlers } from './handlers/AIModeration';
+import { WelcomeHandlers } from './handlers/WelcomeHandler';
+import { ServerProtection } from './handlers/ServerProtection';
 
 const logger = createLogger('gateway-client');
 
@@ -36,6 +45,7 @@ export class GatewayClient extends Client {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildModeration,
       ],
     });
 
@@ -47,6 +57,9 @@ export class GatewayClient extends Client {
     // Ready event
     this.once(Events.ClientReady, async (readyClient) => {
       logger.info(`✅ Logged in as ${readyClient.user.tag}`);
+      logger.info(`🛡️ AI Moderation: ACTIVE`);
+      logger.info(`👋 Welcome System: ACTIVE`);
+      logger.info(`🔒 Server Protection: ACTIVE`);
       
       // Publish ready event to Redis
       const redis = getRedisClient();
@@ -58,6 +71,66 @@ export class GatewayClient extends Client {
           guildCount: readyClient.guilds.cache.size,
         },
       });
+    });
+
+    // ====================================
+    // MESSAGE HANDLER (AI MODERATION)
+    // ====================================
+    this.on(Events.MessageCreate, async (message: Message) => {
+      try {
+        await this.handleMessage(message);
+      } catch (error) {
+        logger.error('Message handler error:', error);
+      }
+    });
+
+    // ====================================
+    // MEMBER JOIN (WELCOME + RAID DETECTION)
+    // ====================================
+    this.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+      try {
+        await this.handleMemberJoin(member);
+      } catch (error) {
+        logger.error('Member join handler error:', error);
+      }
+    });
+
+    // ====================================
+    // MEMBER LEAVE (GOODBYE)
+    // ====================================
+    this.on(Events.GuildMemberRemove, async (member: GuildMember | PartialGuildMember) => {
+      try {
+        await this.handleMemberLeave(member);
+      } catch (error) {
+        logger.error('Member leave handler error:', error);
+      }
+    });
+
+    // ====================================
+    // ANTI-NUKE PROTECTION
+    // ====================================
+    this.on(Events.ChannelDelete, async (channel: GuildChannel) => {
+      try {
+        await ServerProtection.handleChannelDelete(channel);
+      } catch (error) {
+        logger.error('Channel delete handler error:', error);
+      }
+    });
+
+    this.on(Events.GuildRoleDelete, async (role: Role) => {
+      try {
+        await ServerProtection.handleRoleDelete(role);
+      } catch (error) {
+        logger.error('Role delete handler error:', error);
+      }
+    });
+
+    this.on(Events.GuildBanAdd, async (ban: GuildBan) => {
+      try {
+        await ServerProtection.handleMassBan(ban);
+      } catch (error) {
+        logger.error('Ban handler error:', error);
+      }
     });
 
     // Interaction handler
@@ -90,6 +163,78 @@ export class GatewayClient extends Client {
     this.on(Events.Warn, (message) => {
       logger.warn('Discord warning:', message);
     });
+  }
+
+  // ====================================
+  // MESSAGE HANDLER (AI MODERATION)
+  // ====================================
+  private async handleMessage(message: Message): Promise<void> {
+    // Ignore bots and DMs
+    if (message.author.bot || !message.guild) return;
+    
+    // Run AI moderation
+    await AIModerationHandlers.handleMessage(message);
+  }
+
+  // ====================================
+  // MEMBER JOIN HANDLER
+  // ====================================
+  private async handleMemberJoin(member: GuildMember): Promise<void> {
+    const guild = member.guild;
+    
+    // Check for raid
+    const isRaid = await ServerProtection.trackJoin(guild);
+    if (isRaid) {
+      logger.warn(`⚠️ RAID DETECTED in ${guild.name}! Handling...`);
+      await ServerProtection.handlePotentialRaid(guild, member);
+      return;
+    }
+    
+    // Get welcome channel (look for channels named "welcome", "general", or use system channel)
+    const welcomeChannel = guild.channels.cache.find(
+      ch => ch.name.includes('welcome') && ch.isTextBased()
+    ) || guild.channels.cache.find(
+      ch => ch.name.includes('general') && ch.isTextBased()
+    ) || guild.systemChannel;
+    
+    if (welcomeChannel && welcomeChannel.isTextBased()) {
+      // Build and send welcome message
+      const { embed, row } = await WelcomeHandlers.buildWelcomeEmbed(member);
+      await (welcomeChannel as TextChannel).send({
+        content: `${member}`,
+        embeds: [embed],
+        components: [row],
+      });
+    }
+    
+    // Send DM welcome
+    await WelcomeHandlers.sendWelcomeDM(member);
+    
+    // Assign auto-roles
+    await WelcomeHandlers.assignAutoRoles(member);
+    
+    logger.info(`👋 Welcomed ${member.user.tag} to ${guild.name}`);
+  }
+
+  // ====================================
+  // MEMBER LEAVE HANDLER
+  // ====================================
+  private async handleMemberLeave(member: GuildMember | PartialGuildMember): Promise<void> {
+    const guild = member.guild;
+    
+    // Get goodbye channel
+    const goodbyeChannel = guild.channels.cache.find(
+      ch => ch.name.includes('welcome') && ch.isTextBased()
+    ) || guild.channels.cache.find(
+      ch => ch.name.includes('general') && ch.isTextBased()
+    ) || guild.systemChannel;
+    
+    if (goodbyeChannel && goodbyeChannel.isTextBased()) {
+      const embed = await WelcomeHandlers.buildGoodbyeEmbed(member);
+      await (goodbyeChannel as TextChannel).send({ embeds: [embed] });
+    }
+    
+    logger.info(`👋 ${member.user?.tag || 'Unknown'} left ${guild.name}`);
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
@@ -161,6 +306,18 @@ export class GatewayClient extends Client {
         userId: interaction.user.id,
       },
     });
+
+    // Handle welcome system buttons
+    if (action === 'welcome') {
+      await WelcomeHandlers.handleWelcomeButton(interaction, subAction);
+      return;
+    }
+
+    // Handle verification buttons
+    if (action === 'verify') {
+      await ServerProtection.startVerification(interaction.member as GuildMember, interaction);
+      return;
+    }
 
     // Handle ticket system buttons
     if (action === 'ticket') {
