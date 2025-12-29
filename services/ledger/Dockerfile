@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY services/ledger/package.json ./services/ledger/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 COPY packages/shared ./packages/shared
 COPY services/ledger ./services/ledger
@@ -34,7 +34,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY services/ledger/package.json ./services/ledger/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --prod
 
 # Runtime stage
 FROM gcr.io/distroless/nodejs20-debian12

@@ -17,7 +17,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY services/gateway/package.json ./services/gateway/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 # Copy source code
 COPY packages/shared ./packages/shared
@@ -39,7 +39,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY services/gateway/package.json ./services/gateway/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --prod
 
 # Runtime stage - using Distroless
 FROM gcr.io/distroless/nodejs20-debian12

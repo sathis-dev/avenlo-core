@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY services/pulse/package.json ./services/pulse/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 COPY packages/shared ./packages/shared
 COPY services/pulse ./services/pulse
@@ -34,7 +34,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY services/pulse/package.json ./services/pulse/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --prod
 
 # Runtime stage
 FROM gcr.io/distroless/nodejs20-debian12
