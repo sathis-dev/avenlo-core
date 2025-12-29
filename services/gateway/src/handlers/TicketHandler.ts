@@ -402,67 +402,98 @@ async function sendTranscriptToLogChannel(guild: any, ticket: any, transcript: s
 
 export async function deployTicketPanel(channel: TextChannel): Promise<Message> {
   const embed = new EmbedBuilder()
-    .setColor(AvenloColors.PURPLE)
+    .setColor(0x5865F2) // Discord Blurple
     .setAuthor({
-      name: 'AVENLO STUDIO',
+      name: 'AVENLO SUPPORT',
       iconURL: AvenloBranding.iconUrl,
     })
-    .setTitle(`🎫 Support Center`)
+    .setTitle(`\u200b`)
     .setDescription(
-      `Need assistance? Click the button below to open a private support ticket.\n\n` +
-      `Our team will assist you as quickly as possible based on your ticket priority.\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      `## 🎫  Support Center\n\n` +
+      `Welcome to **Avenlo Studio** support! Our dedicated team is here to assist you with any questions or concerns.\n\n` +
+      `Click the button below to open a **private ticket** — all conversations are confidential and secure.\n\n` +
+      `\`\`\`\n` +
+      `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
+      `┃   📋 TICKET CATEGORIES                      ┃\n` +
+      `┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n` +
+      `┃  🚀 Project Inquiry    │  Start a project  ┃\n` +
+      `┃  🔧 Technical Support  │  Get tech help    ┃\n` +
+      `┃  💳 Billing & Payments │  Invoice queries  ┃\n` +
+      `┃  💡 Feature Request    │  Suggest ideas    ┃\n` +
+      `┃  🐛 Bug Report         │  Report issues    ┃\n` +
+      `┃  📝 General Inquiry    │  Other questions  ┃\n` +
+      `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n` +
+      `\`\`\``
     )
     .addFields(
       {
-        name: `📋 Available Categories`,
-        value: 
-          `> 🚀 **Project Inquiry** — Start a new project or get a quote\n` +
-          `> 🔧 **Technical Support** — Get help with technical issues\n` +
-          `> 💳 **Billing & Payments** — Invoice or subscription questions\n` +
-          `> 💡 **Feature Request** — Suggest improvements\n` +
-          `> 🐛 **Bug Report** — Report unexpected behavior\n` +
-          `> 📝 **General Inquiry** — Other questions`,
+        name: `\u200b`,
+        value: `**━━━━━ ⏰ Response SLA ━━━━━**`,
         inline: false,
       },
       {
-        name: `⏰ Response Times (SLA)`,
-        value: 
-          `> 🔴 **Urgent:** 30 minutes\n` +
-          `> 🟠 **High:** 2 hours\n` +
-          `> 🟡 **Medium:** 8 hours\n` +
-          `> 🟢 **Low:** 24 hours`,
+        name: `🔴 Urgent`,
+        value: `**30 min**`,
         inline: true,
       },
       {
-        name: `⭐ Verified Clients`,
-        value: 
-          `> Priority support (2hr response)\n` +
-          `> Dedicated project channels\n` +
-          `> Direct senior dev access`,
+        name: `🟠 High`,
+        value: `**2 hours**`,
         inline: true,
+      },
+      {
+        name: `🟡 Medium`,
+        value: `**8 hours**`,
+        inline: true,
+      },
+      {
+        name: `🟢 Low`,
+        value: `**24 hours**`,
+        inline: true,
+      },
+      {
+        name: `⭐ VIP`,
+        value: `**Priority**`,
+        inline: true,
+      },
+      {
+        name: `\u200b`,
+        value: `\u200b`,
+        inline: true,
+      },
+      {
+        name: `\u200b`,
+        value: 
+          `> ⭐ **Verified Clients** receive priority support with 2-hour response times,\n` +
+          `> dedicated project channels, and direct access to senior developers.`,
+        inline: false,
       }
     )
-    .setImage('https://i.imgur.com/AfFp7pu.png') // Optional banner
     .setFooter({ 
-      text: `${AvenloBranding.footer} • All tickets are private and secure`,
+      text: `${AvenloBranding.footer} • 🔒 All tickets are private and encrypted`,
       iconURL: AvenloBranding.iconUrl,
     })
     .setTimestamp();
 
   const createButton = new ButtonBuilder()
     .setCustomId('ticket:create')
-    .setLabel('Create Ticket')
-    .setEmoji('🎫')
-    .setStyle(ButtonStyle.Success);
+    .setLabel('Open a Ticket')
+    .setEmoji('📩')
+    .setStyle(ButtonStyle.Primary);
 
   const faqButton = new ButtonBuilder()
     .setCustomId('ticket:faq')
-    .setLabel('View FAQ')
-    .setEmoji('📚')
+    .setLabel('FAQ & Help')
+    .setEmoji('📖')
     .setStyle(ButtonStyle.Secondary);
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(createButton, faqButton);
+  const statusButton = new ButtonBuilder()
+    .setLabel('Service Status')
+    .setEmoji('🟢')
+    .setStyle(ButtonStyle.Link)
+    .setURL(AvenloBranding.website || 'https://avenlo.studio');
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(createButton, faqButton, statusButton);
 
   return await channel.send({ embeds: [embed], components: [row] });
 }

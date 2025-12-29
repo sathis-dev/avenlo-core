@@ -191,7 +191,6 @@ export function buildWelcomeEmbed(member: GuildMember): EmbedBuilder {
         inline: false,
       }
     )
-    .setImage('https://i.imgur.com/AfFp7pu.png')
     .setFooter({
       text: `${AvenloBranding.footer} • Member #${memberCount}`,
       iconURL: AvenloBranding.iconUrl,
