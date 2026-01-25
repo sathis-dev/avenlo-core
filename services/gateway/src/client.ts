@@ -829,6 +829,124 @@ export class GatewayClient extends Client {
   }
 
   // ====================================
+  // GUARDIAN MODERATION BUTTON HANDLER
+  // ====================================
+  private async handleModerationButton(
+    interaction: ButtonInteraction,
+    subAction: string,
+    params: string[]
+  ): Promise<void> {
+    const { EmbedBuilder } = await import('discord.js');
+    const { AvenloColors } = await import('@avenlo/shared');
+    const redis = getRedisClient();
+
+    // Parse params: [userId, messageId, infractionId]
+    const [targetUserId, messageId, infractionId] = params;
+
+    switch (subAction) {
+      case 'confirm':
+        // Confirm AI moderation action
+        await interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(AvenloColors.GREEN)
+              .setTitle('✅ Action Confirmed')
+              .setDescription(`Moderator ${interaction.user.tag} confirmed the action.`)
+              .setTimestamp(),
+          ],
+          components: [],
+        });
+
+        // Publish confirmation event
+        await redis.publish(EventTypes.SYSTEM_METRICS, {
+          source: 'gateway',
+          payload: {
+            type: 'moderation_confirmed',
+            moderatorId: interaction.user.id,
+            targetUserId,
+            infractionId,
+            action: 'confirm',
+          },
+        });
+        break;
+
+      case 'override':
+        // Override AI decision (leniency)
+        await interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(AvenloColors.YELLOW)
+              .setTitle('⚖️ Action Overridden')
+              .setDescription(`Moderator ${interaction.user.tag} overrode the AI decision with leniency.`)
+              .setTimestamp(),
+          ],
+          components: [],
+        });
+
+        // Publish override event for AI retraining
+        await redis.publish(EventTypes.SYSTEM_METRICS, {
+          source: 'gateway',
+          payload: {
+            type: 'moderation_override',
+            moderatorId: interaction.user.id,
+            targetUserId,
+            infractionId,
+            action: 'override',
+            overrideType: 'leniency',
+          },
+        });
+        break;
+
+      case 'escalate':
+        // Escalate to higher tier (ban + pattern)
+        await interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(AvenloColors.RED)
+              .setTitle('🚨 Action Escalated')
+              .setDescription(`Moderator ${interaction.user.tag} escalated to ban + pattern signature.`)
+              .setTimestamp(),
+          ],
+          components: [],
+        });
+
+        // Publish escalation event
+        await redis.publish(EventTypes.SYSTEM_METRICS, {
+          source: 'gateway',
+          payload: {
+            type: 'moderation_escalate',
+            moderatorId: interaction.user.id,
+            targetUserId,
+            infractionId,
+            action: 'escalate',
+          },
+        });
+        break;
+
+      case 'dismiss':
+        // Dismiss the alert
+        await interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(AvenloColors.GRAY || '#6B7280')
+              .setTitle('❌ Alert Dismissed')
+              .setDescription(`Moderator ${interaction.user.tag} dismissed this alert.`)
+              .setTimestamp(),
+          ],
+          components: [],
+        });
+        break;
+
+      default:
+        logger.warn(`Unknown moderation subAction: ${subAction}`);
+        await interaction.reply({
+          content: '❌ Unknown moderation action.',
+          ephemeral: true,
+        });
+    }
+  }
+
+  // ====================================
   // STARTUP
   // ====================================
 
