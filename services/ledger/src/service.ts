@@ -33,12 +33,12 @@ export class LedgerService {
     const redis = getRedisClient();
 
     // Subscribe to credit earning events
-    await redis.subscribe(EventTypes.LEDGER_CREDIT_EARNED, async (event) => {
+    await redis.subscribe(EventTypes.LEDGER_CREDITS_EARNED, async (event) => {
       await this.handleCreditEarned(event.payload as any);
     });
 
     // Subscribe to credit spending events
-    await redis.subscribe(EventTypes.LEDGER_CREDIT_SPENT, async (event) => {
+    await redis.subscribe(EventTypes.LEDGER_CREDITS_SPENT, async (event) => {
       await this.handleCreditSpent(event.payload as any);
     });
 
@@ -47,8 +47,8 @@ export class LedgerService {
 
   async stop(): Promise<void> {
     const redis = getRedisClient();
-    await redis.unsubscribe(EventTypes.LEDGER_CREDIT_EARNED);
-    await redis.unsubscribe(EventTypes.LEDGER_CREDIT_SPENT);
+    await redis.unsubscribe(EventTypes.LEDGER_CREDITS_EARNED);
+    await redis.unsubscribe(EventTypes.LEDGER_CREDITS_SPENT);
   }
 
   private async handleCreditEarned(payload: {

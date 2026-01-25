@@ -47,7 +47,7 @@ export async function loadEvents(client: Client): Promise<void> {
   });
 
   // Subscribe to Ledger events
-  await redis.subscribe(EventTypes.LEDGER_CREDIT_EARNED, async (event) => {
+  await redis.subscribe(EventTypes.LEDGER_CREDITS_EARNED, async (event) => {
     logger.info('Credit earned event received:', event.payload);
     // Handle notifying the user
   });

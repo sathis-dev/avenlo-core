@@ -67,6 +67,9 @@ services:
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Guardian AI Moderation
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GUARDIAN_ENABLED=${GUARDIAN_ENABLED:-true}
     depends_on:
       redis:
         condition: service_healthy
@@ -98,6 +101,10 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AI_PROVIDER=${AI_PROVIDER:-openai}
       - AI_MODEL=${AI_MODEL:-gpt-4o}
+      # Multi-Agent Orchestration
+      - ARCHITECT_MULTI_AGENT=${ARCHITECT_MULTI_AGENT:-true}
+      - MAX_DEBATE_ROUNDS=${MAX_DEBATE_ROUNDS:-3}
+      - AUTO_APPROVE_THRESHOLD=${AUTO_APPROVE_THRESHOLD:-7}
     depends_on:
       redis:
         condition: service_healthy

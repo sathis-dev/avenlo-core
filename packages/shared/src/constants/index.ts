@@ -1,2 +1,2 @@
 export * from './branding';
-export * from './events';
+// Events are exported from types/events.ts - do not export from here to avoid conflicts

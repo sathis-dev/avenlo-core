@@ -1,0 +1,37 @@
+# ====================================
+# AVENLO LEDGER SERVICE - RAILWAY
+# Credit Economy & Role Management
+# ====================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required:
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   DISCORD_TOKEN          - Bot token for role management
+#   DISCORD_GUILD_ID       - Target server ID
+#
+# Role Configuration:
+#   ROLE_STUDIO_LEAD       - Role ID for Studio Lead (500+ credits)
+#   ROLE_ACTIVE_DEV        - Role ID for Active Dev (100+ credits)
+#   ROLE_CONTRIBUTOR       - Role ID for Contributor (10+ credits)
+#
+# Credit Rewards:
+#   CREDITS_TICKET_RESOLVED - Credits for resolving tickets (default: 10)
+#   CREDITS_COMMIT_PUSHED   - Credits per commit (default: 2)
+#   CREDITS_PR_MERGED       - Credits for merged PR (default: 15)
+#
+# Optional:
+#   LOG_LEVEL              - debug | info | warn | error

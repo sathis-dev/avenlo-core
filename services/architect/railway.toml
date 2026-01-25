@@ -1,0 +1,35 @@
+# ====================================
+# AVENLO ARCHITECT SERVICE - RAILWAY
+# Multi-Agent AI Scoping Engine
+# ====================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required:
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   ENCRYPTION_KEY         - 32-byte hex key
+#   OPENAI_API_KEY         - GPT-4o for NEXUS agent
+#   ANTHROPIC_API_KEY      - Claude for SENTINEL/ORACLE agents
+#
+# Multi-Agent Configuration:
+#   ARCHITECT_MULTI_AGENT  - "true" to enable Trinity Agent Model
+#   MAX_DEBATE_ROUNDS      - Max Alpha↔Beta debate rounds (default: 3)
+#   AUTO_APPROVE_THRESHOLD - Beta score to auto-approve (default: 7)
+#
+# Optional:
+#   AI_PROVIDER            - "openai" | "anthropic" (default: openai)
+#   AI_MODEL               - Model override (default: gpt-4o)
+#   LOG_LEVEL              - debug | info | warn | error

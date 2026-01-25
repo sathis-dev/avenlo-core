@@ -1,0 +1,32 @@
+# ====================================
+# AVENLO PULSE SERVICE - RAILWAY
+# DevOps & GitHub Integration
+# ====================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required:
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   DISCORD_TOKEN          - Bot token for posting updates
+#   GITHUB_TOKEN           - GitHub Personal Access Token
+#   GITHUB_WEBHOOK_SECRET  - Secret for webhook verification
+#
+# Channel Configuration:
+#   CHANNEL_DEVOPS         - Channel ID for commit/PR updates
+#   CHANNEL_BUILDS         - Channel ID for build status
+#
+# Optional:
+#   LOG_LEVEL              - debug | info | warn | error

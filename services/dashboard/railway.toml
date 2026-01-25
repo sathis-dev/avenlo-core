@@ -1,9 +1,33 @@
+# ====================================
+# AVENLO DASHBOARD SERVICE - RAILWAY
+# Admin Panel & Analytics
+# ====================================
+
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 60
-restartPolicyType = "ON_FAILURE"
+restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required:
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   SESSION_SECRET         - Secret for session encryption
+#   ENCRYPTION_KEY         - 32-byte hex key
+#
+# OAuth (Discord):
+#   DISCORD_CLIENT_ID      - OAuth application client ID
+#   DISCORD_CLIENT_SECRET  - OAuth application secret
+#   DISCORD_CALLBACK_URL   - OAuth callback URL
+#
+# Optional:
+#   VITE_API_URL           - API endpoint override
+#   LOG_LEVEL              - debug | info | warn | error

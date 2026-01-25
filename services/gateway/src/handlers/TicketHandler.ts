@@ -983,7 +983,7 @@ export async function handleClaimTicketButton(interaction: ButtonInteraction): P
 
   // Award credits
   const redis = getRedisClient();
-  await redis.publish(EventTypes.LEDGER_CREDITS_EARN, {
+  await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
     source: 'gateway',
     payload: {
       userId: member.id,
@@ -1354,7 +1354,7 @@ export async function handleResolveTicketModal(interaction: ModalSubmitInteracti
 
   // Award credits
   const redis = getRedisClient();
-  await redis.publish(EventTypes.LEDGER_CREDITS_EARN, {
+  await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
     source: 'gateway',
     payload: {
       userId: member.id,

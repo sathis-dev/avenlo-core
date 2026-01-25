@@ -4,7 +4,7 @@
 
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
-import { EventType, BaseEvent } from '../constants/events';
+import { EventType, BaseEvent } from '../types/events';
 import { logger } from './logger';
 
 export interface RedisConfig {
@@ -26,24 +26,25 @@ export class RedisClient {
     this.keyPrefix = config.keyPrefix || 'avenlo:';
     this.handlers = new Map();
 
-    // Main client for general operations
-    this.client = new Redis(config.url, {
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times) => Math.min(times * 50, 2000),
+    // Railway TCP proxy does NOT use TLS - use plain connection
+    const commonOptions = {
+      maxRetriesPerRequest: null, // Disable retry limit for long-running connections
+      retryStrategy: (times: number) => Math.min(times * 100, 5000),
       lazyConnect: true,
-    });
+      connectTimeout: 15000,
+      enableReadyCheck: true,
+      enableOfflineQueue: true,
+      reconnectOnError: () => true, // Always attempt to reconnect on error
+    };
+
+    // Main client for general operations
+    this.client = new Redis(config.url, commonOptions);
 
     // Dedicated subscriber connection
-    this.subscriber = new Redis(config.url, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-    });
+    this.subscriber = new Redis(config.url, commonOptions);
 
     // Dedicated publisher connection
-    this.publisher = new Redis(config.url, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-    });
+    this.publisher = new Redis(config.url, commonOptions);
 
     this.setupEventHandlers();
   }
@@ -74,10 +75,19 @@ export class RedisClient {
   }
 
   async connect(): Promise<void> {
+    // Only connect if not already connected
+    const connectIfNeeded = async (redis: Redis, name: string) => {
+      if (redis.status === 'ready' || redis.status === 'connecting') {
+        logger.info(`${name} already ${redis.status}`);
+        return;
+      }
+      await redis.connect();
+    };
+
     await Promise.all([
-      this.client.connect(),
-      this.subscriber.connect(),
-      this.publisher.connect(),
+      connectIfNeeded(this.client, 'Redis client'),
+      connectIfNeeded(this.subscriber, 'Redis subscriber'),
+      connectIfNeeded(this.publisher, 'Redis publisher'),
     ]);
     logger.info('Redis connections established');
   }

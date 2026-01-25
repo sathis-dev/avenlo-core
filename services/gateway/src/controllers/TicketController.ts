@@ -198,7 +198,7 @@ export class TicketController {
 
     // Award claim credits
     const redis = getRedisClient();
-    await redis.publish(EventTypes.LEDGER_CREDITS_EARN, {
+    await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
       source: 'gateway',
       payload: {
         userId: developer.id,
@@ -270,7 +270,7 @@ export class TicketController {
 
     // Award resolution credits
     const redis = getRedisClient();
-    await redis.publish(EventTypes.LEDGER_CREDITS_EARN, {
+    await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
       source: 'gateway',
       payload: {
         userId: resolvedBy.id,

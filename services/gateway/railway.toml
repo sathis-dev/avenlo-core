@@ -1,0 +1,34 @@
+# ====================================
+# AVENLO GATEWAY SERVICE - RAILWAY
+# Discord Bot + Guardian Moderation
+# ====================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required:
+#   DISCORD_TOKEN          - Bot token from Discord Developer Portal
+#   DISCORD_CLIENT_ID      - Application client ID
+#   DISCORD_GUILD_ID       - Target server ID
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   ENCRYPTION_KEY         - 32-byte hex key for encryption
+#
+# Guardian Moderation (AI):
+#   OPENAI_API_KEY         - For GPT-4o Analyst & Visionary layers
+#   GUARDIAN_ENABLED       - "true" to enable AI moderation (default: true)
+#
+# Optional:
+#   LOG_LEVEL              - debug | info | warn | error
+#   NODE_ENV               - production | development

@@ -5,6 +5,9 @@ import {
   LayoutDashboard,
   Users,
   Shield,
+  ShieldCheck,
+  Brain,
+  Command,
   Ticket,
   BarChart3,
   Settings,
@@ -25,8 +28,11 @@ interface LayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Command Center', href: '/command', icon: Command, badge: '👑' },
   { name: 'Members', href: '/members', icon: Users },
   { name: 'Moderation', href: '/moderation', icon: Shield },
+  { name: 'Guardian AI', href: '/guardian', icon: ShieldCheck, badge: 'NEW' },
+  { name: 'Kinetics', href: '/kinetics', icon: Brain, badge: 'β' },
   { name: 'Tickets', href: '/tickets', icon: Ticket },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Logs', href: '/logs', icon: ScrollText },
@@ -93,6 +99,7 @@ export default function Layout({ children }: LayoutProps) {
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
+              const itemWithBadge = item as typeof item & { badge?: string };
               return (
                 <Link
                   key={item.name}
@@ -101,6 +108,11 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <item.icon className={`w-5 h-5 ${isActive ? 'text-avenlo-cyan' : ''}`} />
                   <span>{item.name}</span>
+                  {itemWithBadge.badge && (
+                    <span className="ml-auto px-1.5 py-0.5 text-[10px] font-bold rounded bg-avenlo-cyan/20 text-avenlo-cyan animate-pulse">
+                      {itemWithBadge.badge}
+                    </span>
+                  )}
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"

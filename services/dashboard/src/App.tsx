@@ -1,10 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { SovereignProvider } from './components/sovereign';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Members from './pages/Members';
 import Moderation from './pages/Moderation';
+import Guardian from './pages/Guardian';
+import Kinetics from './pages/Kinetics';
+import CommandCenter from './pages/CommandCenter';
 import Tickets from './pages/Tickets';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
@@ -30,27 +34,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/members" element={<Members />} />
-                <Route path="/moderation" element={<Moderation />} />
-                <Route path="/tickets" element={<Tickets />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/logs" element={<Logs />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <SovereignProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/members" element={<Members />} />
+                  <Route path="/moderation" element={<Moderation />} />
+                  <Route path="/guardian" element={<Guardian />} />
+                  <Route path="/kinetics" element={<Kinetics />} />
+                  <Route path="/command" element={<CommandCenter />} />
+                  <Route path="/tickets" element={<Tickets />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/logs" element={<Logs />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </SovereignProvider>
   );
 }
 

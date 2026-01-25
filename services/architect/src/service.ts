@@ -1,29 +1,44 @@
 // ====================================
 // AVENLO CORE - ARCHITECT SERVICE
+// Multi-Agent Recursive Orchestration
 // ====================================
 
 import { 
   createLogger, 
-  getRedisClient, 
+  getRedisClient,
+  getEventBus,
   EventTypes,
   InterviewSession,
+  IInterviewMessage,
   Project,
   getEncryption,
 } from '@avenlo/shared';
 import { AIClient, AIProvider } from './ai/client';
 import { BriefGenerator } from './brief/generator';
+import { 
+  OrchestrationEngine, 
+  createOrchestrationEngine,
+  SessionConfig 
+} from './core/orchestrator';
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('architect-service');
 
+// Active orchestration sessions
+const activeSessions = new Map<string, OrchestrationEngine>();
+
 export class ArchitectService {
   private ai: AIClient;
   private briefGenerator: BriefGenerator;
+  private useMultiAgent: boolean;
 
   constructor() {
     const provider = (process.env.AI_PROVIDER || 'openai') as AIProvider;
     this.ai = new AIClient(provider);
     this.briefGenerator = new BriefGenerator();
+    this.useMultiAgent = process.env.ARCHITECT_MULTI_AGENT === 'true';
+    
+    logger.info(`Multi-Agent Mode: ${this.useMultiAgent ? 'ENABLED' : 'DISABLED'}`);
   }
 
   async start(): Promise<void> {
@@ -50,8 +65,10 @@ export class ArchitectService {
 
   private async handleInterviewStart(payload: {
     userId: string;
+    username?: string;
     guildId: string;
     channelId: string;
+    threadId?: string;
   }): Promise<void> {
     logger.info(`Starting interview for user ${payload.userId}`);
 
@@ -59,6 +76,13 @@ export class ArchitectService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
+    // Multi-Agent Path
+    if (this.useMultiAgent) {
+      await this.handleMultiAgentInterviewStart(sessionId, payload, expiresAt);
+      return;
+    }
+
+    // Legacy Single-Agent Path
     const systemPrompt = this.getSystemPrompt();
 
     // Create interview session
@@ -67,7 +91,7 @@ export class ArchitectService {
       userId: payload.userId,
       guildId: payload.guildId,
       channelId: payload.channelId,
-      threadId: '', // Will be set when thread is created
+      threadId: payload.threadId || '',
       status: 'active',
       currentPhase: 'introduction',
       aiModel: process.env.AI_MODEL || 'gpt-4o',
@@ -108,6 +132,83 @@ export class ArchitectService {
     logger.info(`Interview session ${sessionId} created for user ${payload.userId}`);
   }
 
+  /**
+   * Multi-Agent Interview Start
+   * Creates OrchestrationEngine with Trinity Agent Model
+   */
+  private async handleMultiAgentInterviewStart(
+    sessionId: string,
+    payload: { userId: string; username?: string; guildId: string; channelId: string; threadId?: string },
+    expiresAt: Date
+  ): Promise<void> {
+    logger.info(`Starting Multi-Agent interview for user ${payload.userId}`);
+
+    // Create orchestration engine config
+    const config: SessionConfig = {
+      sessionId,
+      userId: payload.userId,
+      username: payload.username || payload.userId,
+      guildId: payload.guildId,
+      channelId: payload.channelId,
+      threadId: payload.threadId || '',
+      maxDebateRounds: parseInt(process.env.MAX_DEBATE_ROUNDS || '3', 10),
+      autoApproveThreshold: parseInt(process.env.AUTO_APPROVE_THRESHOLD || '7', 10),
+    };
+
+    // Create orchestration engine
+    const engine = createOrchestrationEngine(config);
+    activeSessions.set(sessionId, engine);
+
+    // Create interview session in MongoDB
+    await InterviewSession.create({
+      sessionId,
+      userId: payload.userId,
+      guildId: payload.guildId,
+      channelId: payload.channelId,
+      threadId: payload.threadId || '',
+      status: 'active',
+      currentPhase: 'discovery',
+      aiModel: 'multi-agent',
+      systemPrompt: 'Multi-Agent Orchestration Mode',
+      expiresAt,
+      messages: [],
+    });
+
+    // Publish thinking start event
+    const eventBus = getEventBus();
+    await eventBus.publish(EventTypes.ARCHITECT_THINKING_START, {
+      sessionId,
+      userId: payload.userId,
+      agentId: 'NEXUS',
+      agentName: 'NEXUS',
+      action: 'Initializing NASA-grade interview protocol...',
+      phase: 'discovery',
+    });
+
+    // Generate initial greeting via orchestrator
+    const greeting = await engine.processUserMessage('Start the discovery interview. Greet the user warmly.');
+
+    // Store session reference
+    const redis = getRedisClient();
+    await redis.setSession(`interview:${payload.userId}`, {
+      sessionId,
+      phase: 'discovery',
+      mode: 'multi-agent',
+      startedAt: new Date().toISOString(),
+    }, 86400);
+
+    // Publish greeting
+    await eventBus.publish(EventTypes.ARCHITECT_INTERVIEW_MESSAGE, {
+      sessionId,
+      userId: payload.userId,
+      role: 'assistant',
+      content: greeting,
+      phase: 'discovery',
+    });
+
+    logger.info(`Multi-Agent session ${sessionId} created for user ${payload.userId}`);
+  }
+
   private async handleInterviewMessage(payload: {
     sessionId: string;
     userId: string;
@@ -122,6 +223,184 @@ export class ArchitectService {
       return;
     }
 
+    // Check if this is a multi-agent session
+    if (session.aiModel === 'multi-agent') {
+      await this.handleMultiAgentMessage(payload, session);
+      return;
+    }
+
+    // Legacy single-agent path
+    await this.handleLegacyMessage(payload, session);
+  }
+
+  /**
+   * Multi-Agent Message Handler
+   * Routes messages through OrchestrationEngine
+   */
+  private async handleMultiAgentMessage(
+    payload: { sessionId: string; userId: string; message: string },
+    session: any
+  ): Promise<void> {
+    const engine = activeSessions.get(payload.sessionId);
+    if (!engine) {
+      logger.error(`No active orchestration engine for session ${payload.sessionId}`);
+      return;
+    }
+
+    // Add user message to session
+    session.messages.push({
+      role: 'user',
+      content: payload.message,
+      timestamp: new Date(),
+    });
+
+    // Check for interview completion triggers
+    const isComplete = await this.checkMultiAgentCompletion(payload.message, engine);
+
+    if (isComplete) {
+      // Initiate multi-agent debate
+      await engine.initiateDebate();
+      const result = engine.getResult();
+
+      if (result.success && result.projectBrief) {
+        await this.completeMultiAgentInterview(session, engine, result);
+      } else {
+        logger.warn(`Debate did not complete successfully: ${result.state}`);
+      }
+      return;
+    }
+
+    // Process message through orchestrator
+    const response = await engine.processUserMessage(payload.message);
+
+    // Update session
+    session.messages.push({
+      role: 'assistant',
+      content: response,
+      timestamp: new Date(),
+    });
+    session.messageCount += 2;
+    session.lastMessageAt = new Date();
+    await session.save();
+
+    // Publish response
+    const eventBus = getEventBus();
+    await eventBus.publish(EventTypes.ARCHITECT_INTERVIEW_MESSAGE, {
+      sessionId: session.sessionId,
+      userId: session.userId,
+      role: 'assistant',
+      content: response,
+      phase: session.currentPhase,
+    });
+  }
+
+  /**
+   * Check if multi-agent interview should complete
+   */
+  private async checkMultiAgentCompletion(message: string, engine: OrchestrationEngine): Promise<boolean> {
+    const completionPhrases = [
+      'generate the brief',
+      'create the proposal',
+      'that\'s everything',
+      'we\'re done',
+      'finalize the project',
+      'let\'s proceed',
+    ];
+
+    const lowerMessage = message.toLowerCase();
+    return completionPhrases.some(phrase => lowerMessage.includes(phrase));
+  }
+
+  /**
+   * Complete multi-agent interview with debate results
+   */
+  private async completeMultiAgentInterview(
+    session: any,
+    engine: OrchestrationEngine,
+    result: any
+  ): Promise<void> {
+    logger.info(`Completing Multi-Agent interview ${session.sessionId}`);
+
+    session.status = 'completed';
+    session.completedAt = new Date();
+    await session.save();
+
+    // Create project with debate-generated brief
+    const encryption = getEncryption();
+    const project = await Project.create({
+      name: `Project-${session.sessionId.slice(0, 8)}`,
+      slug: `project-${session.sessionId.slice(0, 8)}`,
+      description: result.projectBrief.summary,
+      clientId: session.userId,
+      clientName: session.userId,
+      guildId: session.guildId,
+      threadId: session.threadId,
+      status: 'scoping',
+      brief: result.projectBrief,
+      briefEncrypted: encryption.encryptObject(result.projectBrief),
+      discoveryStartedAt: session.createdAt,
+      scopingCompletedAt: new Date(),
+    });
+
+    session.projectId = project._id.toString();
+    await session.save();
+
+    // Publish debate complete event
+    const eventBus = getEventBus();
+    const metrics = result.debateHistory.getConvergenceMetrics();
+
+    await eventBus.publish(EventTypes.ARCHITECT_DEBATE_COMPLETE, {
+      sessionId: session.sessionId,
+      userId: session.userId,
+      projectId: project._id.toString(),
+      totalRounds: metrics.totalRounds,
+      finalConfidence: metrics.finalConfidence,
+      criticalScoreProgression: metrics.criticalScoreProgression,
+      requirements: result.projectBrief.requirements,
+      estimatedCredits: result.projectBrief.estimatedBudget || 0,
+      estimatedHours: result.projectBrief.estimatedHours,
+      techStack: result.projectBrief.techStack,
+    });
+
+    await eventBus.publish(EventTypes.ARCHITECT_INTERVIEW_COMPLETE, {
+      sessionId: session.sessionId,
+      userId: session.userId,
+      projectId: project._id.toString(),
+      briefId: session.sessionId,
+      complexityScore: result.projectBrief.complexityScore,
+      estimatedHours: result.projectBrief.estimatedHours,
+      techStack: result.projectBrief.techStack,
+    });
+
+    // Generate PDF
+    const pdfBuffer = await this.briefGenerator.generatePDF(result.projectBrief, project);
+
+    await eventBus.publish(EventTypes.ARCHITECT_BRIEF_GENERATED, {
+      briefId: session.sessionId,
+      projectId: project._id.toString(),
+      userId: session.userId,
+      summary: result.projectBrief.summary,
+      requirements: result.projectBrief.requirements,
+      deliverables: result.projectBrief.deliverables,
+      estimatedBudget: result.projectBrief.estimatedBudget,
+    });
+
+    // Cleanup
+    activeSessions.delete(session.sessionId);
+    const redis = getRedisClient();
+    await redis.deleteSession(`interview:${session.userId}`);
+
+    logger.info(`Multi-Agent interview ${session.sessionId} completed, project ${project._id} created`);
+    logger.info(`Debate Summary:\n${engine.generateDiscordSummary()}`);
+  }
+
+  /**
+   * Legacy single-agent message handler
+   */
+  private async handleLegacyMessage(
+    payload: { sessionId: string; userId: string; message: string },
+    session: any
+  ): Promise<void> {
     // Add user message
     session.messages.push({
       role: 'user',
@@ -138,7 +417,7 @@ export class ArchitectService {
     }
 
     // Generate AI response
-    const messages = session.messages.map((m) => ({
+    const messages = session.messages.map((m: IInterviewMessage) => ({
       role: m.role as 'system' | 'user' | 'assistant',
       content: m.content,
     }));

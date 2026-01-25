@@ -1,10 +1,36 @@
 # ====================================
 # AVENLO CORE - RAILWAY CONFIGURATION
+# Multi-Service Deployment Guide
 # ====================================
 
-# NOTE: This is the DEFAULT config for the Gateway service.
-# Dashboard has its own config at services/dashboard/railway.toml
-# When creating a dashboard service, set Root Directory to "services/dashboard"
+# This project uses Railway's multi-service architecture.
+# Each service should be created separately in Railway:
+#
+# 1. GATEWAY SERVICE (Main Bot)
+#    - Root Directory: /
+#    - Uses this railway.toml
+#    - Dockerfile: services/gateway/Dockerfile
+#
+# 2. DASHBOARD SERVICE
+#    - Root Directory: services/dashboard
+#    - Uses services/dashboard/railway.toml
+#
+# 3. ARCHITECT SERVICE (AI Scoping)
+#    - Root Directory: /
+#    - Create custom railway.toml or use Docker build
+#    - Dockerfile: services/architect/Dockerfile
+#
+# 4. LEDGER SERVICE (Economy)
+#    - Root Directory: /
+#    - Dockerfile: services/ledger/Dockerfile
+#
+# 5. PULSE SERVICE (DevOps)
+#    - Root Directory: /
+#    - Dockerfile: services/pulse/Dockerfile
+
+# ====================================
+# GATEWAY SERVICE (DEFAULT)
+# ====================================
 
 [build]
 builder = "dockerfile"
@@ -15,3 +41,21 @@ healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+numReplicas = 1
+
+# ====================================
+# ENVIRONMENT VARIABLES (Set in Railway Dashboard)
+# ====================================
+# Required for Gateway:
+#   DISCORD_TOKEN          - Bot token
+#   DISCORD_CLIENT_ID      - Application client ID
+#   DISCORD_GUILD_ID       - Target server ID
+#   MONGODB_URI            - MongoDB connection string
+#   REDIS_URL              - Redis connection string
+#   ENCRYPTION_KEY         - 32-byte hex key for encryption
+#   OPENAI_API_KEY         - For Guardian AI moderation
+#
+# Optional:
+#   ANTHROPIC_API_KEY      - For multi-model AI
+#   LOG_LEVEL              - debug | info | warn | error
+

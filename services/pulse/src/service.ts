@@ -168,7 +168,7 @@ export class PulseService {
 
     // Publish event for Gateway to update Discord message
     const redis = getRedisClient();
-    await redis.publish(EventTypes.PULSE_COMMIT, {
+    await redis.publish(EventTypes.PULSE_COMMIT_PUSHED, {
       source: 'pulse',
       payload: {
         repository: repository.full_name,
@@ -194,7 +194,7 @@ export class PulseService {
       const user = await User.findOne({ githubUsername: username });
       
       if (user) {
-        await redis.publish(EventTypes.LEDGER_CREDIT_EARNED, {
+        await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
           source: 'pulse',
           payload: {
             userId: user._id.toString(),
@@ -250,7 +250,7 @@ export class PulseService {
           const user = await User.findOne({ githubUsername: pull_request.user.login });
           
           if (user) {
-            await redis.publish(EventTypes.LEDGER_CREDIT_EARNED, {
+            await redis.publish(EventTypes.LEDGER_CREDITS_EARNED, {
               source: 'pulse',
               payload: {
                 userId: user._id.toString(),

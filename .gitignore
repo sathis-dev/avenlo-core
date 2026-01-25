@@ -34,3 +34,7 @@ coverage/
 # Temp
 tmp/
 temp/
+
+# Railway backups
+.env.railway.backup
+railway-variables-backup.txt
