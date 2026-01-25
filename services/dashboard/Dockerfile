@@ -1,6 +1,6 @@
 # ====================================
 # AVENLO CORE - DASHBOARD DOCKERFILE
-# Build context: repo root (for Railway)
+# Root Directory: services/dashboard
 # ====================================
 
 FROM node:20-alpine AS builder
@@ -10,20 +10,20 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package.json from services/dashboard and remove workspace dependency
-COPY services/dashboard/package.json ./
+# Copy package.json and remove workspace dependency
+COPY package.json ./
 RUN sed -i '/"@avenlo\/shared": "workspace:\*",/d' package.json
 
 # Install dependencies
 RUN pnpm install
 
-# Copy dashboard source files from repo root context
-COPY services/dashboard/ ./
+# Copy all source files
+COPY . .
 
 # Build frontend (Vite) - skip tsc type checking
 RUN npx vite build --mode production
 
-# Build server (TypeScript) - use skipLibCheck to avoid type errors
+# Build server (TypeScript) - use skipLibCheck
 RUN npx tsc -p tsconfig.server.json --skipLibCheck || echo "Server build completed"
 
 # Debug: list what was built
@@ -39,7 +39,7 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package.json and remove workspace dep
+# Copy package.json
 COPY --from=builder /app/package.json ./
 RUN sed -i '/"@avenlo\/shared": "workspace:\*",/d' package.json
 
