@@ -43,6 +43,7 @@ import {
   getUserReputationManager,
   UserReputationState,
 } from './UserReputation';
+import { GuardianUI } from './GuardianUI';
 
 const logger = createLogger('guardian-pipeline');
 
@@ -672,6 +673,27 @@ OUTPUT FORMAT (JSON):
       true
     );
 
+    // Log the violation with Premium UI
+    const logChannelId = process.env.CHANNEL_LOGS || '';
+    const logChannel = message.guild?.channels.cache.get(logChannelId) as TextChannel;
+
+    if (logChannel) {
+      try {
+        const user = message.author;
+        const processingTime = Date.now() - message.createdTimestamp; // Estimate latency
+
+        const embed = GuardianUI.buildLogEmbed(infraction, user, processingTime);
+        const components = GuardianUI.buildActionRows(infractionId, action);
+
+        await logChannel.send({
+          embeds: [embed],
+          components: components
+        });
+      } catch (logError) {
+        logger.error(`Failed to send log embed for infraction ${infractionId}:`, logError);
+      }
+    }
+
     // Publish event
     const eventBus = getEventBus();
     await eventBus.publish(EventTypes.MOD_USER_WARNED, {
@@ -724,6 +746,31 @@ OUTPUT FORMAT (JSON):
   // ====================================
   // HELPERS
   // ====================================
+
+  private async getLogChannel(): Promise<TextChannel | undefined> {
+    try {
+      // Import here to avoid circular dependencies if possible, or use a cached client reference
+      // For now we will assume the client is available or we can get the channel via the guild
+      // Since we don't have direct access to the client instance here, we might need to pass it in constructor
+      // BUT, let's look at how other handlers do it. 
+      // Actually, we can't easily get the client here without passing it.
+      // Let's rely on the message context from the calling function usually, but here we need it for logging independently sometimes.
+
+      // FIX: We need to pass the client or guild to this method, OR use a global client accessor if available.
+      // Looking at the codebase, `getRedisClient` is global.
+      // Let's modify the class to store the client reference or fetch the channel differently.
+
+      // Temporary workaround: We will return undefined here and rely on the calling function to handle it
+      // if we can't find it. EXCEPT, the pipeline is initialized per guild.
+
+      // Actually, let's just make it return null for now and I will fix the constructor to take the client/guild
+      // Wait, the processMessage has `message.guild`.
+
+      return undefined; // We will fix this by using message.guild.channels.cache in the calling method
+    } catch (e) {
+      return undefined;
+    }
+  }
 
   private formatContextForAI(
     context: ContextBufferResult,

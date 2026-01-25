@@ -1,10 +1,11 @@
 // ====================================
 // INFRACTION PULSE COMPONENT
 // Glowing status badge with severity state
+// Sovereign Tier: Enhanced neon indicators
 // ====================================
 
 import { motion } from 'framer-motion';
-import { AlertTriangle, Ban, Clock, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Ban, Clock, Shield, ShieldAlert, ShieldCheck, Radio } from 'lucide-react';
 import { InfractionSeverity, ModActionTaken, SEVERITY_COLORS } from '../../types/guardian';
 
 interface InfractionPulseProps {
@@ -35,6 +36,24 @@ function getActionIcon(action: ModActionTaken) {
       return Shield;
     default:
       return ShieldCheck;
+  }
+}
+
+/**
+ * Get neon shadow class based on severity
+ */
+function getNeonShadow(severity: InfractionSeverity): string {
+  switch (severity) {
+    case 'CRITICAL':
+      return 'shadow-neon-red';
+    case 'HIGH':
+      return 'shadow-neon-amber';
+    case 'MEDIUM':
+      return 'shadow-neon-amber';
+    case 'LOW':
+      return 'shadow-neon-cyan';
+    default:
+      return '';
   }
 }
 
@@ -78,6 +97,8 @@ export default function InfractionPulse({
 }: InfractionPulseProps) {
   const colors = SEVERITY_COLORS[severity];
   const ActionIcon = getActionIcon(actionTaken);
+  const neonShadow = getNeonShadow(severity);
+  const isCritical = severity === 'CRITICAL' || severity === 'HIGH';
 
   return (
     <motion.div
@@ -88,25 +109,41 @@ export default function InfractionPulse({
       {/* Status Badge */}
       <div className="flex items-center gap-3">
         <motion.div
-          className={`relative p-3 rounded-2xl ${colors.bg} ${colors.glow}`}
-          animate={{
+          className={`relative p-3 rounded-2xl ${colors.bg} ${neonShadow}`}
+          animate={isCritical ? {
+            boxShadow: [
+              '0 0 10px rgba(255, 59, 59, 0.5), 0 0 20px rgba(255, 59, 59, 0.3)',
+              '0 0 20px rgba(255, 59, 59, 0.7), 0 0 40px rgba(255, 59, 59, 0.5), 0 0 60px rgba(255, 59, 59, 0.3)',
+              '0 0 10px rgba(255, 59, 59, 0.5), 0 0 20px rgba(255, 59, 59, 0.3)',
+            ],
+          } : {
             boxShadow: [
               colors.glow,
               colors.glow.replace('0.4', '0.6').replace('0.5', '0.7'),
               colors.glow,
             ],
           }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: isCritical ? 1.5 : 2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <ActionIcon className={`w-6 h-6 ${colors.text}`} />
-          
+
           {/* Pulse ring */}
           <motion.div
             className={`absolute inset-0 rounded-2xl border-2 ${colors.text.replace('text', 'border')}`}
             initial={{ opacity: 0.6, scale: 1 }}
-            animate={{ opacity: 0, scale: 1.4 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
+            animate={{ opacity: 0, scale: 1.5 }}
+            transition={{ duration: isCritical ? 1 : 1.5, repeat: Infinity, ease: 'easeOut' }}
           />
+
+          {/* Secondary pulse for critical */}
+          {isCritical && (
+            <motion.div
+              className="absolute inset-0 rounded-2xl border border-neon-red"
+              initial={{ opacity: 0.4, scale: 1 }}
+              animate={{ opacity: 0, scale: 1.8 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut', delay: 0.5 }}
+            />
+          )}
         </motion.div>
 
         <div>
@@ -114,9 +151,13 @@ export default function InfractionPulse({
             <span className={`text-lg font-bold ${colors.text}`}>
               {formatAction(actionTaken)}
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}`}>
+            <motion.span
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}`}
+              animate={isCritical ? { scale: [1, 1.05, 1] } : {}}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
               {severity}
-            </span>
+            </motion.span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <span>{formatRelativeTime(timestamp)}</span>
@@ -128,20 +169,34 @@ export default function InfractionPulse({
         </div>
       </div>
 
-      {/* Timestamp */}
+      {/* Timestamp & Live Indicator */}
       <div className="text-right">
         <div className="text-xs text-gray-500 font-mono">
           {new Date(timestamp).toLocaleString()}
         </div>
-        <div className="flex items-center justify-end gap-1 mt-1">
+        <div className="flex items-center justify-end gap-1.5 mt-1">
+          {/* Live indicator with breathing animation */}
           <motion.div
-            className={`w-2 h-2 rounded-full ${colors.bg.replace('/20', '')}`}
-            animate={{ opacity: [1, 0.4, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          />
-          <span className="text-xs text-gray-400">Active</span>
+            className="flex items-center gap-1"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <motion.div
+              className={`w-2 h-2 rounded-full ${isCritical ? 'bg-neon-red' : 'bg-neon-green'}`}
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [1, 0.6, 1],
+              }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <Radio className={`w-3 h-3 ${isCritical ? 'text-neon-red' : 'text-gray-500'}`} />
+          </motion.div>
+          <span className={`text-xs ${isCritical ? 'text-neon-red font-medium' : 'text-gray-400'}`}>
+            {isCritical ? 'LIVE' : 'Active'}
+          </span>
         </div>
       </div>
     </motion.div>
   );
 }
+

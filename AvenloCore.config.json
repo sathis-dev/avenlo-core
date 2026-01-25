@@ -1,0 +1,250 @@
+{
+    "$schema": "https://avenlo.dev/schemas/core-config.json",
+    "version": "1.0.0",
+    "codename": "Sovereign Sentinel",
+    "releaseDate": "2026-01-25",
+    "system": {
+        "identity": "Avenlo Core Sovereign AI (Unit 01)",
+        "framework": "Kinetic Behavioral Forensics",
+        "aesthetic": "High-Density Obsidian"
+    },
+    "defensive_triad": {
+        "L1_ENTROPIC_SIEVE": {
+            "enabled": true,
+            "latencyTarget": "0ms",
+            "patterns": {
+                "cryptoDrainers": true,
+                "phishingSignatures": true,
+                "zalgoNormalization": true,
+                "unicodeObfuscation": true
+            },
+            "globalThreatBuffer": {
+                "enabled": true,
+                "refreshIntervalMs": 300000
+            }
+        },
+        "L2_BEHAVIORAL_ANALYST": {
+            "enabled": true,
+            "latencyTarget": "100ms",
+            "slidingWindowSize": 7,
+            "intentVector": {
+                "hostilityWeight": 0.4,
+                "banterWeight": 0.35,
+                "technicalWeight": 0.25
+            },
+            "shadowScoreSensitivity": {
+                "high": {
+                    "threshold": 80,
+                    "multiplier": 0.7
+                },
+                "medium": {
+                    "threshold": 50,
+                    "multiplier": 1.0
+                },
+                "low": {
+                    "threshold": 20,
+                    "multiplier": 1.5
+                }
+            }
+        },
+        "L3_FORENSIC_VISIONARY": {
+            "enabled": true,
+            "latencyTarget": "800ms",
+            "ocrEnabled": true,
+            "steganographyDetection": true,
+            "deepfakePhishing": true,
+            "fakeUIOverlayDetection": true
+        }
+    },
+    "kinetic_engine": {
+        "thermal_flux": {
+            "decayConstant": 0.05,
+            "thresholds": {
+                "safe": {
+                    "min": 0,
+                    "max": 30,
+                    "hudColor": "#10B981"
+                },
+                "elevated": {
+                    "min": 31,
+                    "max": 70,
+                    "hudColor": "#F59E0B"
+                },
+                "high": {
+                    "min": 71,
+                    "max": 89,
+                    "hudColor": "#EF4444"
+                },
+                "critical": {
+                    "min": 90,
+                    "max": 100,
+                    "hudColor": "#FF0040"
+                }
+            },
+            "actions": {
+                "jitterThreshold": 75,
+                "lockdownCandidate": 90,
+                "autoLockdown": 95
+            }
+        },
+        "behavioral_momentum": {
+            "enabled": true,
+            "observationThreshold": -10,
+            "observationWindowMinutes": 60,
+            "preemptiveObservation": {
+                "enabled": true,
+                "dropThreshold": 20,
+                "windowMinutes": 5
+            }
+        },
+        "shadow_score": {
+            "initialScore": 50,
+            "maxScore": 100,
+            "minScore": 0,
+            "decayRate": {
+                "normal": 0.5,
+                "elevated": 0.6,
+                "critical": 0.8
+            },
+            "legacyTrustThreshold": 95,
+            "probationThreshold": 25
+        }
+    },
+    "scepter_hierarchy": {
+        "SOVEREIGN": {
+            "roles": [
+                "owner",
+                "founder"
+            ],
+            "hudAccent": "#D4AF37",
+            "hudAccentName": "Champagne Gold",
+            "capabilities": [
+                "scepter.pivot",
+                "scepter.nuke",
+                "scepter.rehabilitate",
+                "scepter.override",
+                "lattice.sync",
+                "policy.inject",
+                "thermal.config"
+            ],
+            "bypassL2": true,
+            "confirmationRequired": true
+        },
+        "STRATEGIC": {
+            "roles": [
+                "admin",
+                "head_mod"
+            ],
+            "hudAccent": "#F59E0B",
+            "hudAccentName": "Amber Glow",
+            "capabilities": [
+                "lockdown.toggle",
+                "sieve.patch",
+                "policy.inject",
+                "channel.mute",
+                "audit.layer",
+                "vibe.scan",
+                "archive.csi"
+            ],
+            "bypassL2": false,
+            "confirmationRequired": false
+        },
+        "TACTICAL": {
+            "roles": [
+                "moderator",
+                "mod"
+            ],
+            "hudAccent": "#10B981",
+            "hudAccentName": "Emerald Neon",
+            "capabilities": [
+                "thermal.view",
+                "forensic.inspect",
+                "shadow.inspect",
+                "orbit.view",
+                "stream.activity",
+                "warn.user",
+                "intercept.user",
+                "mute.kinetic"
+            ],
+            "bypassL2": false,
+            "confirmationRequired": false
+        }
+    },
+    "command_lattice": {
+        "prefix": "/",
+        "paletteShortcut": "cmd+k",
+        "chainingSyntax": {
+            "then": "--then",
+            "where": "--where"
+        },
+        "predictiveSuggestions": {
+            "enabled": true,
+            "heatCorrelation": true,
+            "recentInfractionWeight": 0.3
+        }
+    },
+    "ui_protocol": {
+        "colors": {
+            "obsidian": "#050505",
+            "void": "#020202",
+            "glass": "rgba(10, 10, 15, 0.85)",
+            "glassBorder": "rgba(255, 255, 255, 0.1)"
+        },
+        "blur": {
+            "backdrop": "40px",
+            "glassmorphic": "30px"
+        },
+        "typography": {
+            "telemetry": "JetBrains Mono",
+            "interface": "Inter",
+            "display": "Cal Sans"
+        },
+        "animations": {
+            "framework": "framer-motion",
+            "transitionMs": 100,
+            "springStiffness": 300,
+            "springDamping": 30
+        },
+        "visualizations": {
+            "renderer": "WebGL",
+            "forceDirectedGraphs": true,
+            "gpuAccelerated": true,
+            "targetFps": 60
+        }
+    },
+    "redis": {
+        "streams": {
+            "moderation": "stream:mod.*",
+            "thermal": "stream:thermal.*",
+            "shadow": "stream:shadow.*"
+        },
+        "keys": {
+            "thermalFlux": "kinetic:thermal:{channelId}",
+            "shadowScore": "kinetic:shadow:{userId}",
+            "momentum": "kinetic:momentum:{userId}",
+            "globalThreatBuffer": "sieve:gtb:patterns"
+        },
+        "ttl": {
+            "thermalFlux": 86400,
+            "momentum": 3600,
+            "idempotency": 86400
+        }
+    },
+    "mongodb": {
+        "collections": {
+            "infractions": "infractions",
+            "auditLogs": "audit_logs",
+            "userReputation": "user_reputation",
+            "moderationLogs": "moderation_logs"
+        }
+    },
+    "deployment": {
+        "environment": "production",
+        "region": "auto",
+        "scaling": {
+            "minInstances": 1,
+            "maxInstances": 10,
+            "targetCpuUtilization": 70
+        }
+    }
+}

@@ -1,11 +1,12 @@
 // ====================================
 // REPUTATION DELTA COMPONENT
 // Animated sparkline for shadow score changes
+// Sovereign Tier: Interactive hover and impact ripple
 // ====================================
 
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { TrendingDown, TrendingUp, Shield, Clock, Award, AlertOctagon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { TrendingDown, TrendingUp, Shield, Clock, Award, AlertOctagon, Zap } from 'lucide-react';
 import { UserHistorySnapshot } from '../../types/guardian';
 
 interface ReputationDeltaProps {
@@ -27,16 +28,16 @@ function generateSparklinePoints(
   // Generate a path that shows the drop
   const startY = height - padding - ((before / 100) * (height - padding * 2));
   const endY = height - padding - ((after / 100) * (height - padding * 2));
-  
+
   // Create a curved path with some intermediate points
   const midX = width / 2;
   const controlX1 = width * 0.3;
   const controlX2 = width * 0.7;
-  
+
   // Add some natural variance
   const variance = Math.abs(before - after) * 0.3;
   const midY = (startY + endY) / 2 + variance;
-  
+
   return `M ${padding} ${startY} C ${controlX1} ${startY}, ${midX - 20} ${midY}, ${midX} ${midY} S ${controlX2} ${endY}, ${width - padding} ${endY}`;
 }
 
@@ -100,13 +101,13 @@ function ReputationGauge({ score, label }: { score: number; label: string }) {
 /**
  * History Stat
  */
-function HistoryStat({ 
-  icon: Icon, 
-  label, 
-  value, 
+function HistoryStat({
+  icon: Icon,
+  label,
+  value,
   subtext,
-  highlight 
-}: { 
+  highlight
+}: {
   icon: React.ElementType;
   label: string;
   value: string | number;
@@ -139,6 +140,8 @@ export default function ReputationDelta({
 }: ReputationDeltaProps) {
   const delta = reputationAfter - reputationBefore;
   const isNegative = delta < 0;
+  const isSevere = Math.abs(delta) >= 10;
+  const [isHovered, setIsHovered] = useState(false);
 
   // Generate sparkline
   const sparklinePath = useMemo(() => {
@@ -150,35 +153,72 @@ export default function ReputationDelta({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
-      className="forensic-layer rounded-xl border border-avenlo-border/30 bg-avenlo-card/30 overflow-hidden"
+      className={`forensic-layer rounded-xl border ${isNegative && isSevere ? 'border-danger/50' : 'border-avenlo-border/30'} bg-avenlo-card/30 overflow-hidden`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-avenlo-border/30">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${isNegative ? 'bg-danger/20' : 'bg-success/20'}`}>
+          <motion.div
+            className={`p-2 rounded-lg ${isNegative ? 'bg-danger/20' : 'bg-success/20'} ${isNegative && isSevere ? 'shadow-neon-red' : ''}`}
+            animate={isNegative && isSevere ? {
+              boxShadow: [
+                '0 0 5px rgba(239, 68, 68, 0.3)',
+                '0 0 15px rgba(239, 68, 68, 0.5)',
+                '0 0 5px rgba(239, 68, 68, 0.3)',
+              ],
+            } : {}}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
             {isNegative ? (
               <TrendingDown className="w-4 h-4 text-danger" />
             ) : (
               <TrendingUp className="w-4 h-4 text-success" />
             )}
-          </div>
+          </motion.div>
           <div>
-            <h4 className="font-semibold text-white">Reputation Delta</h4>
+            <h4 className="font-semibold text-white flex items-center gap-2">
+              Reputation Delta
+              {isNegative && isSevere && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-danger/20 text-danger"
+                >
+                  <Zap className="w-3 h-3" />
+                  IMPACT
+                </motion.span>
+              )}
+            </h4>
             <p className="text-xs text-gray-500">Shadow Score Impact Analysis</p>
           </div>
         </div>
 
-        {/* Delta Badge */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className={`
-            px-3 py-1.5 rounded-xl font-mono font-bold text-lg
-            ${isNegative ? 'bg-danger/20 text-danger' : 'bg-success/20 text-success'}
-          `}
-        >
-          {delta > 0 ? '+' : ''}{delta}
-        </motion.div>
+        {/* Delta Badge with impact ripple */}
+        <div className="relative">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className={`
+              px-3 py-1.5 rounded-xl font-mono font-bold text-lg relative z-10
+              ${isNegative ? 'bg-danger/20 text-danger' : 'bg-success/20 text-success'}
+              ${isSevere ? (isNegative ? 'shadow-neon-red' : 'shadow-neon-cyan') : ''}
+            `}
+          >
+            {delta > 0 ? '+' : ''}{delta}
+          </motion.div>
+
+          {/* Impact ripple for severe negative deltas */}
+          {isNegative && isSevere && (
+            <motion.div
+              className="absolute inset-0 rounded-xl border border-danger"
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -186,7 +226,7 @@ export default function ReputationDelta({
         {/* Sparkline Visualization */}
         <div className="flex items-center gap-4">
           <ReputationGauge score={reputationBefore} label="Before" />
-          
+
           {/* Sparkline */}
           <div className="flex-1 h-16 relative">
             <svg className="w-full h-full" viewBox="0 0 200 60" preserveAspectRatio="none">
@@ -201,7 +241,7 @@ export default function ReputationDelta({
                   <stop offset="100%" stopColor={isNegative ? '#EF4444' : '#10B981'} stopOpacity="0" />
                 </linearGradient>
               </defs>
-              
+
               {/* Grid lines */}
               {[20, 40, 60, 80].map(y => (
                 <line
@@ -214,7 +254,7 @@ export default function ReputationDelta({
                   strokeDasharray="2 4"
                 />
               ))}
-              
+
               {/* Sparkline path */}
               <motion.path
                 d={sparklinePath}
@@ -226,7 +266,7 @@ export default function ReputationDelta({
                 animate={{ pathLength: 1 }}
                 transition={{ duration: 1.5, ease: 'easeOut' }}
               />
-              
+
               {/* End dot */}
               <motion.circle
                 cx="192"
@@ -238,7 +278,7 @@ export default function ReputationDelta({
                 transition={{ delay: 1.3 }}
               />
             </svg>
-            
+
             {/* Arrow indicator */}
             <motion.div
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -251,7 +291,7 @@ export default function ReputationDelta({
               </span>
             </motion.div>
           </div>
-          
+
           <ReputationGauge score={reputationAfter} label="After" />
         </div>
 

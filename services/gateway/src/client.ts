@@ -63,7 +63,7 @@ export class GatewayClient extends Client {
       logger.info(`🛡️ AI Moderation: ACTIVE`);
       logger.info(`👋 Welcome System: ACTIVE`);
       logger.info(`🔒 Server Protection: ACTIVE`);
-      
+
       // Publish ready event to Redis
       const redis = getRedisClient();
       await redis.publish(EventTypes.GATEWAY_READY, {
@@ -155,13 +155,13 @@ export class GatewayClient extends Client {
         await this.handleInteraction(interaction);
       } catch (error) {
         logger.error('Interaction error:', error);
-        
+
         if (interaction.isRepliable()) {
           const reply = {
             content: '❌ An error occurred while processing your request.',
             ephemeral: true,
           };
-          
+
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp(reply);
           } else {
@@ -182,14 +182,17 @@ export class GatewayClient extends Client {
   }
 
   // ====================================
-  // MESSAGE HANDLER (AI MODERATION)
+  // MESSAGE HANDLER (GUARDIAN AI)
   // ====================================
   private async handleMessage(message: Message): Promise<void> {
     // Ignore bots and DMs
     if (message.author.bot || !message.guild) return;
-    
-    // Run AI moderation
-    await AIModerationHandlers.handleMessage(message);
+
+    // Guardian Pipeline (Multi-Layer AI)
+    const { GuardianPipeline } = await import('./moderation/GuardianPipeline');
+    const guardian = new GuardianPipeline(message.guild.id);
+
+    await guardian.processMessage(message);
   }
 
   // ====================================
@@ -197,25 +200,25 @@ export class GatewayClient extends Client {
   // ====================================
   private async handleMemberJoin(member: GuildMember): Promise<void> {
     const guild = member.guild;
-    
-    // Check for raid
-    const raidCheck = ServerProtection.trackJoin(member);
-    if (raidCheck.isRaid) {
-      logger.warn(`⚠️ RAID DETECTED in ${guild.name}! Handling...`);
-      const logChannel = guild.channels.cache.find(
-        ch => ch.name.includes('mod-log') && ch.isTextBased()
-      ) as TextChannel | undefined;
-      await ServerProtection.handlePotentialRaid(guild, logChannel);
+
+    // Check for raid using advanced Token Bucket Detector
+    const { getRaidDetector } = await import('./moderation/RaidDetector');
+    const detector = getRaidDetector(guild.id);
+    const raidAction = await detector.processJoin(member);
+
+    if (raidAction) {
+      // RaidDetector handles the lockdown logic internally via events
+      // We just need to log locally if needed, but the detector publishes events
       return;
     }
-    
+
     // Get welcome channel (look for channels named "welcome", "general", or use system channel)
     const welcomeChannel = guild.channels.cache.find(
       ch => ch.name.includes('welcome') && ch.isTextBased()
     ) || guild.channels.cache.find(
       ch => ch.name.includes('general') && ch.isTextBased()
     ) || guild.systemChannel;
-    
+
     if (welcomeChannel && welcomeChannel.isTextBased()) {
       // Build and send welcome message
       const embed = WelcomeHandlers.buildWelcomeEmbed(member);
@@ -226,13 +229,13 @@ export class GatewayClient extends Client {
         components: [row],
       });
     }
-    
+
     // Send DM welcome
     await WelcomeHandlers.sendWelcomeDM(member);
-    
+
     // Assign auto-roles
     await WelcomeHandlers.assignAutoRoles(member);
-    
+
     logger.info(`👋 Welcomed ${member.user.tag} to ${guild.name}`);
   }
 
@@ -241,19 +244,19 @@ export class GatewayClient extends Client {
   // ====================================
   private async handleMemberLeave(member: GuildMember | PartialGuildMember): Promise<void> {
     const guild = member.guild;
-    
+
     // Get goodbye channel
     const goodbyeChannel = guild.channels.cache.find(
       ch => ch.name.includes('welcome') && ch.isTextBased()
     ) || guild.channels.cache.find(
       ch => ch.name.includes('general') && ch.isTextBased()
     ) || guild.systemChannel;
-    
+
     if (goodbyeChannel && goodbyeChannel.isTextBased()) {
       const embed = await WelcomeHandlers.buildGoodbyeEmbed(member);
       await (goodbyeChannel as TextChannel).send({ embeds: [embed] });
     }
-    
+
     logger.info(`👋 ${member.user?.tag || 'Unknown'} left ${guild.name}`);
   }
 
@@ -385,10 +388,10 @@ export class GatewayClient extends Client {
           await TicketHandlers.handleDeleteConfirmButton(interaction);
           return;
         case 'delete_cancel':
-          await interaction.update({ 
-            content: '❌ Deletion cancelled.', 
-            embeds: [], 
-            components: [] 
+          await interaction.update({
+            content: '❌ Deletion cancelled.',
+            embeds: [],
+            components: []
           });
           return;
         case 'transcript':
@@ -398,6 +401,12 @@ export class GatewayClient extends Client {
           await TicketHandlers.handleRenameButton(interaction);
           return;
       }
+    }
+
+    // Handle Guardian Moderation buttons
+    if (action === 'mod') {
+      await this.handleModerationButton(interaction, subAction, params);
+      return;
     }
 
     // Handle common button actions
@@ -512,7 +521,7 @@ export class GatewayClient extends Client {
       if (subAction === 'user_select') {
         // Add user to ticket channel
         const channel = interaction.channel as TextChannel;
-        
+
         try {
           await channel.permissionOverwrites.create(selectedUser.id, {
             ViewChannel: true,
@@ -530,17 +539,17 @@ export class GatewayClient extends Client {
             ],
           });
 
-          await interaction.update({ 
-            content: `✅ Added ${selectedUser.tag} to the ticket.`, 
-            embeds: [], 
-            components: [] 
+          await interaction.update({
+            content: `✅ Added ${selectedUser.tag} to the ticket.`,
+            embeds: [],
+            components: []
           });
         } catch (error) {
           logger.error('Failed to add user to ticket:', error);
-          await interaction.update({ 
-            content: '❌ Failed to add user to ticket.', 
-            embeds: [], 
-            components: [] 
+          await interaction.update({
+            content: '❌ Failed to add user to ticket.',
+            embeds: [],
+            components: []
           });
         }
         return;
@@ -550,8 +559,8 @@ export class GatewayClient extends Client {
         // Transfer ticket to new developer
         const member = await interaction.guild?.members.fetch(selectedUser.id);
         const isDeveloper = member?.roles.cache.has(process.env.ROLE_DEVELOPER || '') ||
-                           member?.roles.cache.has(process.env.ROLE_MODERATOR || '') ||
-                           member?.roles.cache.has(process.env.ROLE_MANAGEMENT || '');
+          member?.roles.cache.has(process.env.ROLE_MODERATOR || '') ||
+          member?.roles.cache.has(process.env.ROLE_MANAGEMENT || '');
 
         if (!isDeveloper) {
           await interaction.update({
@@ -583,10 +592,10 @@ export class GatewayClient extends Client {
           ],
         });
 
-        await interaction.update({ 
-          content: `✅ Ticket transferred to ${selectedUser.tag}.`, 
-          embeds: [], 
-          components: [] 
+        await interaction.update({
+          content: `✅ Ticket transferred to ${selectedUser.tag}.`,
+          embeds: [],
+          components: []
         });
         return;
       }
@@ -697,7 +706,7 @@ export class GatewayClient extends Client {
 
     // Rebuild the select menu to preserve it
     const { StringSelectMenuBuilder, ActionRowBuilder } = await import('discord.js');
-    
+
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('help_category')
       .setPlaceholder('Select a category for more details...')
@@ -743,7 +752,7 @@ export class GatewayClient extends Client {
 
   private async handleStartProject(interaction: ButtonInteraction): Promise<void> {
     const redis = getRedisClient();
-    
+
     // Store session for project start
     await redis.setSession(interaction.user.id, {
       flow: 'project_start',
