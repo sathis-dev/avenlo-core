@@ -12,12 +12,12 @@ export interface IUser extends Document {
   email?: string;
   githubUsername?: string;
   githubId?: string;
-  
+
   // Credits & Economy
   credits: number;
   totalEarned: number;
   totalSpent: number;
-  
+
   // Contribution tracking
   contributions: {
     commits: number;
@@ -26,17 +26,17 @@ export interface IUser extends Document {
     reviews: number;
     tickets: number;
   };
-  
+
   // Activity
   lastActiveAt: Date;
   lastContributionAt?: Date;
   isActive: boolean;
   streak: number;
-  
+
   // Roles
   roles: string[];
   isStudioLead: boolean;
-  
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -71,7 +71,7 @@ const UserSchema = new Schema<IUser>(
       type: String,
       sparse: true,
     },
-    
+
     // Credits
     credits: {
       type: Number,
@@ -86,7 +86,7 @@ const UserSchema = new Schema<IUser>(
       type: Number,
       default: 0,
     },
-    
+
     // Contributions
     contributions: {
       commits: { type: Number, default: 0 },
@@ -95,7 +95,7 @@ const UserSchema = new Schema<IUser>(
       reviews: { type: Number, default: 0 },
       tickets: { type: Number, default: 0 },
     },
-    
+
     // Activity
     lastActiveAt: {
       type: Date,
@@ -110,7 +110,7 @@ const UserSchema = new Schema<IUser>(
       type: Number,
       default: 0,
     },
-    
+
     // Roles
     roles: [{
       type: String,
@@ -130,6 +130,6 @@ const UserSchema = new Schema<IUser>(
 UserSchema.index({ credits: -1 });
 UserSchema.index({ lastActiveAt: -1 });
 UserSchema.index({ 'contributions.pullRequests': -1 });
-UserSchema.index({ githubUsername: 1 }, { sparse: true });
+// Note: githubUsername index defined inline with sparse: true on field
 
 export const User = mongoose.model<IUser>('User', UserSchema);

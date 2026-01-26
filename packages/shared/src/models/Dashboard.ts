@@ -25,7 +25,7 @@ export interface IDashboard extends Document {
   guildId: string;
   channelId: string;
   messageId: string;
-  
+
   // Project Reference
   projectId?: string;
   repository: {
@@ -34,18 +34,18 @@ export interface IDashboard extends Document {
     name: string;
     branch: string;
   };
-  
+
   // Progress
   progress: number;
   totalCommits: number;
   totalPRs: number;
   openPRs: number;
   openIssues: number;
-  
+
   // Recent Activity
   recentCommits: ICommitInfo[];
   activeDevs: IDevActivity[];
-  
+
   // System Health
   health: {
     status: 'online' | 'degraded' | 'offline' | 'unknown';
@@ -53,7 +53,7 @@ export interface IDashboard extends Document {
     lastCheckedAt: Date;
     uptime: number;
   };
-  
+
   // Build Status
   lastBuild: {
     status: 'success' | 'failure' | 'running' | 'pending';
@@ -61,10 +61,10 @@ export interface IDashboard extends Document {
     duration?: number;
     timestamp: Date;
   };
-  
+
   // Last Update
   lastUpdatedAt: Date;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,7 +107,7 @@ const DashboardSchema = new Schema<IDashboard>(
       required: true,
       unique: true,
     },
-    
+
     projectId: {
       type: String,
       sparse: true,
@@ -118,7 +118,7 @@ const DashboardSchema = new Schema<IDashboard>(
       name: { type: String, required: true },
       branch: { type: String, default: 'main' },
     },
-    
+
     progress: {
       type: Number,
       default: 0,
@@ -141,7 +141,7 @@ const DashboardSchema = new Schema<IDashboard>(
       type: Number,
       default: 0,
     },
-    
+
     recentCommits: {
       type: [CommitInfoSchema],
       default: [],
@@ -150,7 +150,7 @@ const DashboardSchema = new Schema<IDashboard>(
       type: [DevActivitySchema],
       default: [],
     },
-    
+
     health: {
       status: {
         type: String,
@@ -161,7 +161,7 @@ const DashboardSchema = new Schema<IDashboard>(
       lastCheckedAt: { type: Date, default: Date.now },
       uptime: { type: Number, default: 0 },
     },
-    
+
     lastBuild: {
       status: {
         type: String,
@@ -172,7 +172,7 @@ const DashboardSchema = new Schema<IDashboard>(
       duration: Number,
       timestamp: { type: Date, default: Date.now },
     },
-    
+
     lastUpdatedAt: {
       type: Date,
       default: Date.now,
@@ -186,6 +186,6 @@ const DashboardSchema = new Schema<IDashboard>(
 
 // Indexes
 DashboardSchema.index({ 'repository.owner': 1, 'repository.name': 1 });
-DashboardSchema.index({ projectId: 1 }, { sparse: true });
+// Note: projectId index defined inline with sparse: true on field
 
 export const Dashboard = mongoose.model<IDashboard>('Dashboard', DashboardSchema);

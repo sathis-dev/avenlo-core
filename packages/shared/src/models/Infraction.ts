@@ -467,7 +467,7 @@ const InfractionSchema = new Schema<IInfraction>(
     staffOverrideReason: { type: String },
     overriddenBy: { type: String },
     tags: [{ type: String }],
-    expiresAt: { type: Date, index: true },
+    expiresAt: { type: Date }, // TTL index defined below
   },
   {
     timestamps: true,

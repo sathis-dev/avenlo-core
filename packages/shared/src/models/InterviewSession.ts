@@ -17,20 +17,20 @@ export interface IInterviewSession extends Document {
   sessionId: string;
   userId: string;
   projectId?: string;
-  
+
   // Discord
   guildId: string;
   threadId: string;
   channelId: string;
-  
+
   // Status
   status: InterviewStatus;
   currentPhase: string;
-  
+
   // Conversation
   messages: IInterviewMessage[];
   messageCount: number;
-  
+
   // Extracted Data
   extractedData: {
     projectType?: string;
@@ -41,17 +41,17 @@ export interface IInterviewSession extends Document {
     designPreferences?: string[];
     additionalNotes?: string[];
   };
-  
+
   // AI Configuration
   aiModel: string;
   systemPrompt: string;
-  
+
   // Timestamps
   startedAt: Date;
   lastMessageAt: Date;
   completedAt?: Date;
   expiresAt: Date;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -92,7 +92,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
       type: String,
       sparse: true,
     },
-    
+
     // Discord
     guildId: {
       type: String,
@@ -107,7 +107,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
       type: String,
       required: true,
     },
-    
+
     // Status
     status: {
       type: String,
@@ -119,14 +119,14 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
       type: String,
       default: 'introduction',
     },
-    
+
     // Conversation
     messages: [InterviewMessageSchema],
     messageCount: {
       type: Number,
       default: 0,
     },
-    
+
     // Extracted Data
     extractedData: {
       projectType: String,
@@ -137,7 +137,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
       designPreferences: [String],
       additionalNotes: [String],
     },
-    
+
     // AI Config
     aiModel: {
       type: String,
@@ -147,7 +147,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
       type: String,
       required: true,
     },
-    
+
     // Timestamps
     startedAt: {
       type: Date,
@@ -161,7 +161,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+      // TTL index defined below with expireAfterSeconds
     },
   },
   {
