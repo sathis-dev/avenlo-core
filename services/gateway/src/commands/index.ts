@@ -16,7 +16,9 @@ import { adminCommand } from './admin';
 import { ticketCommand } from './ticket';
 import { modCommand } from './mod';
 import { rulesCommand } from './rules';
-import { guardianCommand } from './guardian';
+import { sovereignCommand } from './sovereign';
+import { lockdownCommand, sieveCommand, policyCommand } from './strategic';
+import { thermalCommand, shadowCommand, forensicCommand, interceptCommand } from './tactical';
 
 const logger = createLogger('gateway-commands');
 
@@ -36,7 +38,15 @@ const commands: Command[] = [
   ticketCommand,
   modCommand,
   rulesCommand,
-  guardianCommand,
+  // Sovereign Suite
+  sovereignCommand,
+  lockdownCommand,
+  sieveCommand,
+  policyCommand,
+  thermalCommand,
+  shadowCommand,
+  forensicCommand,
+  interceptCommand,
 ];
 
 export async function loadCommands(): Promise<Collection<string, Command>> {
