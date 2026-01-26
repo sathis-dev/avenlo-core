@@ -55,11 +55,58 @@ export const helpCommand: Command = {
           inline: false,
         },
         {
+          name: `🎫 Support Commands`,
+          value: [
+            '`/ticket create` - Create a support ticket',
+            '`/ticket list` - View your open tickets',
+            '`/ticket claim` - Claim an open ticket (Dev)',
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: `🛡️ Moderation Commands`,
+          value: [
+            '`/mod user warn/mute/kick/ban` - User moderation',
+            '`/mod channel lock/purge` - Channel control',
+            '`/mod ai analyze` - AI content analysis',
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: `🎯 Tactical Commands`,
+          value: [
+            '`/thermal` - View 3D Heat Prism visualization',
+            '`/shadow` - Pull 24h reputation sparkline',
+            '`/forensic` - Open CSI logic sheet for event',
+            '`/intercept` - Isolate user for deep AI auditing',
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: `⚡ Strategic Commands`,
+          value: [
+            '`/lockdown` - Activate raid protocols',
+            '`/sieve patch` - Inject L1 filter patterns',
+            '`/policy inject` - Add L2 AI heuristics',
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: `👑 Sovereign Commands`,
+          value: [
+            '`/avenlo pivot` - Shift global culture/vibe',
+            '`/avenlo nuke` - Trigger Safe-State Zero',
+            '`/avenlo rehabilitate` - Grant legacy trust',
+          ].join('\n'),
+          inline: false,
+        },
+        {
           name: `${AvenloEmojis.GEAR} Admin Commands`,
           value: [
             '`/admin credits` - Manage user credits',
             '`/admin sync` - Sync with external services',
             '`/dashboard create` - Create a new dashboard',
+            '`/rules` - Deploy server rules (Admin)',
           ].join('\n'),
           inline: false,
         }
@@ -84,10 +131,22 @@ export const helpCommand: Command = {
           emoji: '💰',
         },
         {
-          label: 'Analytics',
-          description: 'Learn about dashboards and stats',
-          value: 'analytics',
-          emoji: '📊',
+          label: 'Support & Tickets',
+          description: 'Learn about the ticket system',
+          value: 'tickets',
+          emoji: '🎫',
+        },
+        {
+          label: 'Moderation',
+          description: 'Learn about moderation tools',
+          value: 'moderation',
+          emoji: '🛡️',
+        },
+        {
+          label: 'Guardian AI',
+          description: 'Tactical, Strategic & Sovereign commands',
+          value: 'guardian',
+          emoji: '🤖',
         },
         {
           label: 'Getting Started',
