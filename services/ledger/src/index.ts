@@ -11,7 +11,7 @@ import {
 } from '@avenlo/shared';
 import { getLedgerConsumer } from './consumer';
 import { LedgerService } from './service';
-import { RoleManager } from './roles/manager';
+import { getRoleManager } from './roles/manager';
 import { startHealthServer } from './server';
 
 const logger = createLogger('ledger');
@@ -48,8 +48,8 @@ async function bootstrap(): Promise<void> {
     await ledger.start();
     logger.info('✅ Legacy Ledger service started');
 
-    // Initialize Role Manager
-    const roleManager = new RoleManager();
+    // Initialize Role Manager (shared singleton; consumer drives promotions)
+    const roleManager = getRoleManager();
     await roleManager.start();
     logger.info('✅ Role manager started');
 
