@@ -29,6 +29,7 @@ export const EventTypes = {
   ARCHITECT_AGENT_COMPLETE: 'architect:agent:complete',
   ARCHITECT_DEBATE_ROUND: 'architect:debate:round',
   ARCHITECT_DEBATE_COMPLETE: 'architect:debate:complete',
+  ARCHITECT_PHASE_ADVANCED: 'architect:phase:advanced',
 
   // ====================================
   // PULSE EVENTS (DevOps)
@@ -54,6 +55,7 @@ export const EventTypes = {
   LEDGER_ROLE_PROMOTED: 'ledger:role:promoted',
   LEDGER_ROLE_DEMOTED: 'ledger:role:demoted',
   LEDGER_LEADERBOARD_UPDATE: 'ledger:leaderboard:update',
+  LEDGER_TRANSACTION_CLEARED: 'ledger:transaction:cleared',
 
   // ====================================
   // TICKET EVENTS
@@ -73,6 +75,11 @@ export const EventTypes = {
   MOD_USER_KICKED: 'mod:user:kicked',
   MOD_USER_BANNED: 'mod:user:banned',
   MOD_RAID_DETECTED: 'mod:raid:detected',
+
+  // ====================================
+  // KINETIC EVENTS (Guardian / Threat Engine)
+  // ====================================
+  KINETIC_THREAT_DETECTED: 'kinetic:threat:detected',
 
   // ====================================
   // SYSTEM EVENTS
@@ -550,6 +557,140 @@ export interface SystemMetricsPayload {
 }
 
 // ====================================
+// V2.0 EVENT DICTIONARY PAYLOADS
+// Exact cross-service contracts
+// ====================================
+
+/** Phases of an Architect AI client interview, in order */
+export type InterviewPhase =
+  | 'discovery'
+  | 'requirements'
+  | 'timeline'
+  | 'budget'
+  | 'review'
+  | 'complete';
+
+/**
+ * Emitted by Architect when an interview session transitions to the next phase.
+ */
+export interface ArchitectPhaseAdvancedPayload {
+  /** Interview session identifier */
+  sessionId: string;
+  /** Discord user being interviewed */
+  userId: string;
+  /** Phase the session moved out of */
+  fromPhase: InterviewPhase;
+  /** Phase the session moved into */
+  toPhase: InterviewPhase;
+  /** Zero-based index of the new phase */
+  phaseIndex: number;
+  /** Total number of phases in the flow */
+  totalPhases: number;
+  /** Overall completion percentage (0-100) */
+  progress: number;
+  /** ISO timestamp of the transition */
+  advancedAt: string;
+}
+
+/**
+ * Emitted by Pulse when a pull request is merged. Extends the generic PR
+ * payload with merge-specific, always-present fields.
+ */
+export interface PulsePrMergedPayload extends PulsePRPayload {
+  /** Discriminator narrowed to the merged action */
+  action: 'merged';
+  /** GitHub username of the actor that performed the merge */
+  mergedBy: string;
+  /** ISO timestamp the PR was merged */
+  mergedAt: string;
+  /** Number of commits included in the merged PR */
+  commitCount: number;
+}
+
+/** Lifecycle classification for a cleared ledger transaction */
+export type LedgerTransactionType = 'earn' | 'spend' | 'transfer' | 'adjustment';
+
+/**
+ * Emitted by Ledger once a credit transaction has been durably committed
+ * (post double-entry settlement). Consumers can treat this as authoritative.
+ */
+export interface LedgerTransactionClearedPayload {
+  /** Unique transaction identifier */
+  transactionId: string;
+  /** Internal user id */
+  userId: string;
+  /** Discord snowflake of the user */
+  discordId: string;
+  /** Display name at time of clearing */
+  username: string;
+  /** Direction/type of the transaction */
+  type: LedgerTransactionType;
+  /** Signed credit amount applied */
+  amount: number;
+  /** Balance prior to the transaction */
+  balanceBefore: number;
+  /** Balance after the transaction */
+  balanceAfter: number;
+  /** Business reason for the credit movement */
+  reason: CreditReason;
+  /** Idempotency key guaranteeing exactly-once settlement */
+  idempotencyKey: string;
+  /** ISO timestamp the transaction cleared */
+  clearedAt: string;
+}
+
+/** Severity tiers for a detected kinetic threat */
+export type ThreatSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+/** Categories of threat the Guardian/Kinetic engine can surface */
+export type ThreatVector =
+  | 'spam'
+  | 'raid'
+  | 'toxicity'
+  | 'phishing'
+  | 'scam'
+  | 'nsfw'
+  | 'self_harm'
+  | 'impersonation';
+
+/**
+ * Emitted by the Gateway Guardian pipeline when the kinetic threat engine
+ * flags a message or actor.
+ */
+export interface KineticThreatDetectedPayload {
+  /** Guild where the threat was detected */
+  guildId: string;
+  /** Channel the offending content originated from */
+  channelId: string;
+  /** Offending user id */
+  userId: string;
+  /** Offending user's display name */
+  username: string;
+  /** Message id that triggered detection, when applicable */
+  messageId?: string;
+  /** Primary threat classification */
+  vector: ThreatVector;
+  /** Assessed severity */
+  severity: ThreatSeverity;
+  /** Model confidence in the detection (0-1) */
+  confidence: number;
+  /** Reputation delta applied to the user as a result */
+  reputationDelta: number;
+  /** Automated action recommended by the engine */
+  recommendedAction:
+    | 'observe'
+    | 'warn'
+    | 'mute'
+    | 'kick'
+    | 'ban'
+    | 'quarantine';
+  /** Raw signals/heuristics that contributed to the score */
+  signals: string[];
+  /** ISO timestamp of detection */
+  detectedAt: string;
+}
+
+// ====================================
 // EVENT REGISTRY - TYPE-SAFE MAPPING
 // Uses TypeScript's `keyof` and `infer` for strict typing
 // ====================================
@@ -576,11 +717,12 @@ export interface EventPayloadMap {
   [EventTypes.ARCHITECT_AGENT_COMPLETE]: ArchitectAgentCompletePayload;
   [EventTypes.ARCHITECT_DEBATE_ROUND]: ArchitectDebateRoundPayload;
   [EventTypes.ARCHITECT_DEBATE_COMPLETE]: ArchitectDebateCompletePayload;
+  [EventTypes.ARCHITECT_PHASE_ADVANCED]: ArchitectPhaseAdvancedPayload;
 
   // Pulse
   [EventTypes.PULSE_COMMIT_PUSHED]: PulseCommitPayload;
   [EventTypes.PULSE_PR_OPENED]: PulsePRPayload;
-  [EventTypes.PULSE_PR_MERGED]: PulsePRPayload;
+  [EventTypes.PULSE_PR_MERGED]: PulsePrMergedPayload;
   [EventTypes.PULSE_PR_CLOSED]: PulsePRPayload;
   [EventTypes.PULSE_BUILD_START]: PulseBuildPayload;
   [EventTypes.PULSE_BUILD_SUCCESS]: PulseBuildPayload;
@@ -595,6 +737,7 @@ export interface EventPayloadMap {
   [EventTypes.LEDGER_ROLE_PROMOTED]: LedgerRoleUpdatePayload;
   [EventTypes.LEDGER_ROLE_DEMOTED]: LedgerRoleUpdatePayload;
   [EventTypes.LEDGER_LEADERBOARD_UPDATE]: LedgerLeaderboardUpdatePayload;
+  [EventTypes.LEDGER_TRANSACTION_CLEARED]: LedgerTransactionClearedPayload;
 
   // Tickets
   [EventTypes.TICKET_CREATED]: TicketCreatedPayload;
@@ -610,6 +753,9 @@ export interface EventPayloadMap {
   [EventTypes.MOD_USER_KICKED]: ModUserActionPayload;
   [EventTypes.MOD_USER_BANNED]: ModUserActionPayload;
   [EventTypes.MOD_RAID_DETECTED]: ModRaidDetectedPayload;
+
+  // Kinetic
+  [EventTypes.KINETIC_THREAT_DETECTED]: KineticThreatDetectedPayload;
 
   // System
   [EventTypes.SYSTEM_ERROR]: SystemErrorPayload;

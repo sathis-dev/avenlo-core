@@ -5,7 +5,7 @@
 // ====================================
 
 import { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { TrendingDown, TrendingUp, Shield, Clock, Award, AlertOctagon, Zap } from 'lucide-react';
 import { UserHistorySnapshot } from '../../types/guardian';
 
@@ -141,7 +141,7 @@ export default function ReputationDelta({
   const delta = reputationAfter - reputationBefore;
   const isNegative = delta < 0;
   const isSevere = Math.abs(delta) >= 10;
-  const [isHovered, setIsHovered] = useState(false);
+  const [, setIsHovered] = useState(false);
 
   // Generate sparkline
   const sparklinePath = useMemo(() => {
