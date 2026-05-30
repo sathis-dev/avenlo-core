@@ -4,9 +4,9 @@
 // 3D Sentiment Topology + Gold-Pulse Interface
 // ====================================
 
-import { useRef, useMemo, useState, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Sphere, Html, Float } from '@react-three/drei';
+import { useRef, useMemo, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
@@ -15,7 +15,6 @@ import {
     Crown,
     Shield,
     Zap,
-    AlertTriangle,
     Check,
     X,
     ChevronUp,
@@ -23,7 +22,6 @@ import {
     Activity,
     Users,
     TrendingUp,
-    Clock,
 } from 'lucide-react';
 
 // ====================================
@@ -47,7 +45,7 @@ const SCEPTER_COLORS = {
 // TYPES
 // ====================================
 
-interface ChannelSector {
+export interface ChannelSector {
     id: string;
     name: string;
     heat: number;
@@ -57,7 +55,7 @@ interface ChannelSector {
     sentiment: number; // -1 to 1
 }
 
-interface GlobalMetrics {
+export interface GlobalMetrics {
     totalUsers: number;
     activeUsers24h: number;
     messageCount24h: number;
@@ -67,7 +65,7 @@ interface GlobalMetrics {
     recentInfractions: number;
 }
 
-interface SovereignGavelAction {
+export interface SovereignGavelAction {
     id: string;
     type: 'CONFIRM' | 'OVERRIDE' | 'ESCALATE';
     userId: string;
@@ -79,7 +77,7 @@ interface SovereignGavelAction {
     timestamp: number;
 }
 
-interface ExecutiveWarRoomProps {
+export interface ExecutiveWarRoomProps {
     channels: ChannelSector[];
     metrics: GlobalMetrics;
     pendingAction?: SovereignGavelAction;
@@ -179,7 +177,7 @@ function ChannelHeatPoint({
 function GlobeCore({ globalHeat }: { globalHeat: number }) {
     const meshRef = useRef<THREE.Mesh>(null);
 
-    useFrame((state) => {
+    useFrame(() => {
         if (meshRef.current) {
             meshRef.current.rotation.y += 0.002;
         }
@@ -269,6 +267,8 @@ function SentimentTopologyScene({
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
                     offset={new THREE.Vector2(0.001, 0.001)}
+                    radialModulation={false}
+                    modulationOffset={0}
                 />
             </EffectComposer>
         </>
@@ -450,13 +450,6 @@ function SovereignGavel({
 // ====================================
 
 function ExecutiveMetrics({ metrics }: { metrics: GlobalMetrics }) {
-    const threatColors = {
-        MINIMAL: SCEPTER_COLORS.success,
-        ELEVATED: SCEPTER_COLORS.warning,
-        HIGH: SCEPTER_COLORS.danger,
-        CRITICAL: '#FF0040',
-    };
-
     return (
         <div className="grid grid-cols-4 gap-4">
             {[

@@ -7,7 +7,7 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as d3Force from 'd3-force';
-import { AlertTriangle, User, Shield, Zap, Eye } from 'lucide-react';
+import { AlertTriangle, User, Zap } from 'lucide-react';
 import { KINETIC_COLORS } from '../../types/kinetic';
 
 // ====================================
@@ -170,7 +170,6 @@ function ImplosionEffect({
 
 function UserNodeElement({
     node,
-    scale,
     isHovered,
     onHover,
     onClick,

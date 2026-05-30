@@ -15,7 +15,6 @@ import {
     FileText,
     Terminal,
     Zap,
-    AlertTriangle,
     User,
     X,
     Command,
