@@ -44,6 +44,10 @@ import {
   UserReputationState,
 } from './UserReputation';
 import { GuardianUI } from './GuardianUI';
+import { KineticAnalyst, getKineticAnalyst } from './KineticAnalyst';
+import { ThermalEngine, getThermalEngine } from './ThermalEngine';
+import { WindowMessage } from './kineticAnalysis';
+import { heatForThreat } from './thermalDecay';
 
 const logger = createLogger('guardian-pipeline');
 
@@ -149,6 +153,8 @@ export class GuardianPipeline {
   private guildId: string;
   private sentimentEngine: SentimentEngine;
   private reputationManager: UserReputationManager;
+  private kineticAnalyst: KineticAnalyst;
+  private thermalEngine: ThermalEngine;
 
   constructor(guildId: string) {
     this.guildId = guildId;
@@ -157,6 +163,62 @@ export class GuardianPipeline {
     });
     this.sentimentEngine = getSentimentEngine(guildId);
     this.reputationManager = getUserReputationManager(guildId);
+    this.kineticAnalyst = getKineticAnalyst(guildId);
+    this.thermalEngine = getThermalEngine(guildId);
+  }
+
+  // ====================================
+  // KINETIC INTELLIGENCE LAYER
+  // ====================================
+
+  /**
+   * Maintain the user's 7-message sliding window, run the GPT-4o psychological
+   * analyst over it, and feed the verdict into the thermal Heat model. When a
+   * user's Heat crosses the lockdown threshold they are auto-locked-down.
+   *
+   * Fully guarded: any failure here is logged and swallowed so the core
+   * moderation pipeline keeps running.
+   */
+  private async runKineticIntelligence(
+    message: Message,
+    contextBuffer: MessageContextBuffer
+  ): Promise<void> {
+    try {
+      const windowMessage: WindowMessage = {
+        messageId: message.id,
+        authorId: message.author.id,
+        username: message.author.username,
+        content: message.content.slice(0, 500),
+        timestamp: message.createdAt.toISOString(),
+      };
+
+      await contextBuffer.recordUserMessage(windowMessage);
+      const window = await contextBuffer.getUserWindow(message.author.id);
+
+      const assessment = await this.kineticAnalyst.analyze(window, {
+        userId: message.author.id,
+        username: message.author.username,
+        channelId: message.channel.id,
+        messageId: message.id,
+      });
+
+      // Translate the verdict into a Heat delta: hostile intent adds Heat,
+      // a confidently-benign read lets the user cool faster than decay alone.
+      let heatDelta = 0;
+      if (assessment?.isThreat) {
+        heatDelta = heatForThreat(assessment.severity, assessment.confidence);
+      } else if (assessment && assessment.confidence >= 0.6) {
+        heatDelta = -8;
+      }
+
+      const heat = await this.thermalEngine.addHeat(message.author.id, heatDelta);
+
+      if (message.member) {
+        await this.thermalEngine.enforce(message.member, heat);
+      }
+    } catch (error) {
+      logger.error('Kinetic intelligence layer error:', error);
+    }
   }
 
   // ====================================
@@ -196,6 +258,12 @@ export class GuardianPipeline {
     logger.debug(
       `Processing message from ${message.author.username} | Sensitivity: ${combinedSensitivity.toFixed(2)}x`
     );
+
+    // ====================================
+    // KINETIC INTELLIGENCE (sliding window + thermal heat)
+    // Runs additively for every message and never blocks moderation.
+    // ====================================
+    await this.runKineticIntelligence(message, contextBuffer);
 
     // ====================================
     // LAYER 1: THE SIEVE

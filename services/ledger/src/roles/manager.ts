@@ -2,14 +2,23 @@
 // AVENLO CORE - ROLE MANAGER
 // ====================================
 
-import { Client, GatewayIntentBits, GuildMember } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { 
   createLogger, 
   getRedisClient, 
+  getEventBus,
   EventTypes,
+  LedgerRoleUpdatePayload,
   User,
 } from '@avenlo/shared';
+import {
+  PROMOTION_TIERS,
+  PromotionTier,
+  tierForCredits,
+  tierRank,
+  resolveTierRoleId,
+} from './tiers';
 
 const logger = createLogger('ledger-roles');
 
@@ -319,4 +328,132 @@ export class RoleManager {
       logger.error(`Failed to grant Contributor role to ${discordId}:`, error);
     }
   }
+
+  // ====================================
+  // PROOF-OF-VALUE TIER PROMOTION
+  // ====================================
+
+  private tierMarkerKey(discordId: string): string {
+    return `ledger:tier:${discordId}`;
+  }
+
+  /** Role ids for all tiers strictly below `target`, excluding `keepRoleId`. */
+  private supersededRoleIds(target: PromotionTier, keepRoleId: string): string[] {
+    const targetRank = tierRank(target);
+    const ids = new Set<string>();
+    for (const tier of PROMOTION_TIERS) {
+      if (tierRank(tier) < targetRank) {
+        const roleId = resolveTierRoleId(tier);
+        if (roleId && roleId !== keepRoleId) {
+          ids.add(roleId);
+        }
+      }
+    }
+    return Array.from(ids);
+  }
+
+  /**
+   * Autonomously promote a contributor based on their lifetime credit score.
+   * Triggered by credit-bearing Pulse events (PR merged / commit pushed).
+   *
+   * Determines the highest tier the user qualifies for, and if it exceeds the
+   * tier they were last granted, assigns the tier's Discord role (removing
+   * superseded lower-tier roles) and publishes LEDGER_ROLE_PROMOTED to instruct
+   * the rest of the fleet.
+   */
+  async evaluateTierPromotion(discordId: string, credits: number): Promise<void> {
+    const target = tierForCredits(credits);
+    if (!target) return;
+
+    const redis = getRedisClient().getClient();
+    const markerKey = this.tierMarkerKey(discordId);
+
+    const lastTierKey = await redis.get(markerKey);
+    const lastTier =
+      PROMOTION_TIERS.find((t) => t.key === lastTierKey) ?? null;
+
+    // Only promote upward; never demote or re-fire for the same tier.
+    if (tierRank(target) <= tierRank(lastTier)) {
+      return;
+    }
+
+    const roleId = resolveTierRoleId(target);
+    const user = await User.findOne({ discordId });
+
+    if (!roleId) {
+      logger.warn(
+        `No Discord role configured for tier ${target.name} (${target.roleEnvVar}); ` +
+          'emitting promotion event without applying a role.'
+      );
+    }
+
+    // Apply the role change directly when our Discord client is connected.
+    if (roleId && this.client.isReady()) {
+      try {
+        const guildId = process.env.DISCORD_GUILD_ID!;
+        const guild = await this.client.guilds.fetch(guildId);
+        const member = await guild.members.fetch(discordId);
+
+        for (const supersededId of this.supersededRoleIds(target, roleId)) {
+          if (member.roles.cache.has(supersededId)) {
+            await member.roles.remove(supersededId);
+          }
+        }
+
+        if (!member.roles.cache.has(roleId)) {
+          await member.roles.add(roleId);
+        }
+
+        logger.info(
+          `Promoted ${member.user.tag} to ${target.name} (>= ${target.minCredits} credits)`
+        );
+      } catch (error) {
+        logger.error(`Failed to apply tier role for ${discordId}:`, error);
+      }
+    }
+
+    // Keep the persisted user record in sync.
+    if (user && roleId) {
+      const superseded = this.supersededRoleIds(target, roleId);
+      user.roles = user.roles.filter((r) => !superseded.includes(r));
+      if (!user.roles.includes(roleId)) {
+        user.roles.push(roleId);
+      }
+      await user.save();
+    }
+
+    // Record the tier so we never re-promote to the same level.
+    await redis.set(markerKey, target.key);
+
+    // Instruct the fleet (gateway/dashboard) about the promotion.
+    const payload: LedgerRoleUpdatePayload = {
+      userId: user?._id.toString() ?? discordId,
+      discordId,
+      username: user?.username ?? 'unknown',
+      action: 'promoted',
+      fromRole: lastTier?.name ?? 'None',
+      toRole: target.name,
+      newCredits: credits,
+      threshold: target.minCredits,
+    };
+
+    try {
+      await getEventBus().publish(EventTypes.LEDGER_ROLE_PROMOTED, payload);
+    } catch (error) {
+      logger.error('Failed to publish LEDGER_ROLE_PROMOTED:', error);
+    }
+  }
+}
+
+// ====================================
+// SINGLETON
+// ====================================
+
+let roleManagerInstance: RoleManager | null = null;
+
+export function getRoleManager(): RoleManager {
+  if (!roleManagerInstance) {
+    roleManagerInstance = new RoleManager();
+  }
+  return roleManagerInstance;
 }

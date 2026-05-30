@@ -21,6 +21,7 @@ import {
   User,
   Transaction,
 } from '@avenlo/shared';
+import { getRoleManager } from './roles/manager';
 
 const logger = createLogger('ledger-consumer');
 
@@ -283,6 +284,7 @@ export class LedgerConsumer {
     logger.info(`Processing PULSE_COMMIT: ${payload.commits.length} commits to ${payload.repository}`);
 
     const session = await mongoose.startSession();
+    const promotionTargets = new Map<string, number>();
 
     try {
       await session.withTransaction(async () => {
@@ -310,6 +312,7 @@ export class LedgerConsumer {
 
           const balanceBefore = user.credits;
           const balanceAfter = balanceBefore + credits;
+          promotionTargets.set(user.discordId, balanceAfter);
 
           await User.updateOne(
             { _id: user._id },
@@ -371,6 +374,11 @@ export class LedgerConsumer {
           });
         }
       });
+
+      // Proof-of-Value: evaluate tier promotion for each contributor touched.
+      for (const [discordId, credits] of promotionTargets) {
+        await getRoleManager().evaluateTierPromotion(discordId, credits);
+      }
     } finally {
       await session.endSession();
     }
@@ -388,6 +396,7 @@ export class LedgerConsumer {
     logger.info(`Processing PULSE_PR_MERGED: PR #${payload.prNumber} in ${payload.repository}`);
 
     const session = await mongoose.startSession();
+    const promotionTargets = new Map<string, number>();
 
     try {
       await session.withTransaction(async () => {
@@ -410,6 +419,7 @@ export class LedgerConsumer {
 
         const balanceBefore = user.credits;
         const balanceAfter = balanceBefore + credits;
+        promotionTargets.set(user.discordId, balanceAfter);
 
         await User.updateOne(
           { _id: user._id },
@@ -470,6 +480,11 @@ export class LedgerConsumer {
           referenceUrl: payload.url,
         });
       });
+
+      // Proof-of-Value: evaluate tier promotion against the new balance.
+      for (const [discordId, credits] of promotionTargets) {
+        await getRoleManager().evaluateTierPromotion(discordId, credits);
+      }
     } finally {
       await session.endSession();
     }

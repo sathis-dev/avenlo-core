@@ -12,8 +12,13 @@ import {
 } from 'discord.js';
 import { createLogger, getRedisClient } from '@avenlo/shared';
 import { IMessageContext, ISocialContext } from '@avenlo/shared';
+import { KINETIC_WINDOW_SIZE, WindowMessage } from './kineticAnalysis';
 
 const logger = createLogger('guardian-context-buffer');
+
+// Per-user sliding window retention (Redis key TTL).
+const USER_WINDOW_TTL_SECONDS = 60 * 60; // 1 hour of inactivity
+const USER_WINDOW_KEY_PREFIX = 'guardian:window';
 
 // ====================================
 // CONSTANTS
@@ -339,6 +344,62 @@ export class MessageContextBuffer {
     } catch (error) {
       logger.error('Error updating channel heat:', error);
       return 0;
+    }
+  }
+
+  // ====================================
+  // PER-USER SLIDING WINDOW (REDIS)
+  // ====================================
+
+  /**
+   * Redis key for a user's rolling message window within this guild.
+   * The window is intentionally keyed by guild+user (not channel) so it
+   * tracks an "active user" across the whole server.
+   */
+  private userWindowKey(userId: string): string {
+    return `${USER_WINDOW_KEY_PREFIX}:${this.guildId}:${userId}`;
+  }
+
+  /**
+   * Push a message into a user's 7-message sliding window in Redis.
+   * Oldest entries are trimmed so the list never exceeds KINETIC_WINDOW_SIZE.
+   */
+  async recordUserMessage(message: WindowMessage): Promise<void> {
+    try {
+      const redis = getRedisClient().getClient();
+      const key = this.userWindowKey(message.authorId);
+
+      await redis
+        .multi()
+        .rpush(key, JSON.stringify(message))
+        .ltrim(key, -KINETIC_WINDOW_SIZE, -1)
+        .expire(key, USER_WINDOW_TTL_SECONDS)
+        .exec();
+    } catch (error) {
+      logger.error('Error recording user window message:', error);
+    }
+  }
+
+  /**
+   * Fetch a user's sliding window (oldest first). Malformed entries are skipped.
+   */
+  async getUserWindow(userId: string): Promise<WindowMessage[]> {
+    try {
+      const redis = getRedisClient().getClient();
+      const raw = await redis.lrange(this.userWindowKey(userId), 0, -1);
+
+      const window: WindowMessage[] = [];
+      for (const entry of raw) {
+        try {
+          window.push(JSON.parse(entry) as WindowMessage);
+        } catch {
+          // Skip corrupted entries rather than failing the whole analysis.
+        }
+      }
+      return window;
+    } catch (error) {
+      logger.error('Error reading user window:', error);
+      return [];
     }
   }
 }
