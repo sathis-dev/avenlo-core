@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Zap,
   ScrollText,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
@@ -36,6 +37,7 @@ const navigation = [
   { name: 'Tickets', href: '/tickets', icon: Ticket },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Logs', href: '/logs', icon: ScrollText },
+  { name: 'Welcome', href: '/welcome', icon: Sparkles, badge: 'NEW' },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

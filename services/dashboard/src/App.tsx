@@ -13,6 +13,7 @@ import Tickets from './pages/Tickets';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
+import WelcomeConfig from './pages/WelcomeConfig';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore();
@@ -53,6 +54,7 @@ function App() {
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/welcome" element={<WelcomeConfig />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>
