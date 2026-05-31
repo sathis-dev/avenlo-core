@@ -27,12 +27,22 @@ function toData(doc: IWelcomeConfig): WelcomeConfigData {
     showMemberCount: doc.showMemberCount,
     showAccountAge: doc.showAccountAge,
     channelName: doc.channelName,
+    welcomeChannelId: doc.welcomeChannelId,
+    rulesChannelId: doc.rulesChannelId,
+    rolesChannelId: doc.rolesChannelId,
     titleTemplate: doc.titleTemplate,
     bodyTemplate: doc.bodyTemplate,
     cardTagline: doc.cardTagline,
     neonBorderColor: doc.neonBorderColor,
     embedAccentColor: doc.embedAccentColor,
     autoRoleIds: doc.autoRoleIds,
+    verifiedRoleId: doc.verifiedRoleId,
+    pendingRoleId: doc.pendingRoleId,
+    quarantineNewAccounts: doc.quarantineNewAccounts,
+    quarantineHours: doc.quarantineHours,
+    aiPersonalizedEnabled: doc.aiPersonalizedEnabled,
+    returningMemberEnabled: doc.returningMemberEnabled,
+    themePreset: doc.themePreset,
   };
 }
 

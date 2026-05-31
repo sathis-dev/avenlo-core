@@ -19,6 +19,9 @@ import {
   EventTypes,
   WelcomeConfig,
   DEFAULT_WELCOME_CONFIG,
+  JoinEvent,
+  THEME_PRESETS,
+  type ThemePreset,
   initRedis,
   type RedisClient,
   type WelcomeConfigData,
@@ -510,6 +513,10 @@ function toWelcomeConfigData(
     return { guildId, ...DEFAULT_WELCOME_CONFIG };
   }
   const obj = (doc.toObject ? doc.toObject() : doc) as Record<string, unknown>;
+  const preset = String(obj.themePreset ?? DEFAULT_WELCOME_CONFIG.themePreset);
+  const themePreset: ThemePreset = (THEME_PRESETS as readonly string[]).includes(preset)
+    ? (preset as ThemePreset)
+    : DEFAULT_WELCOME_CONFIG.themePreset;
   return {
     guildId,
     enabled: Boolean(obj.enabled ?? DEFAULT_WELCOME_CONFIG.enabled),
@@ -519,12 +526,28 @@ function toWelcomeConfigData(
     showMemberCount: Boolean(obj.showMemberCount ?? DEFAULT_WELCOME_CONFIG.showMemberCount),
     showAccountAge: Boolean(obj.showAccountAge ?? DEFAULT_WELCOME_CONFIG.showAccountAge),
     channelName: String(obj.channelName ?? DEFAULT_WELCOME_CONFIG.channelName),
+    welcomeChannelId: String(obj.welcomeChannelId ?? DEFAULT_WELCOME_CONFIG.welcomeChannelId),
+    rulesChannelId: String(obj.rulesChannelId ?? DEFAULT_WELCOME_CONFIG.rulesChannelId),
+    rolesChannelId: String(obj.rolesChannelId ?? DEFAULT_WELCOME_CONFIG.rolesChannelId),
     titleTemplate: String(obj.titleTemplate ?? DEFAULT_WELCOME_CONFIG.titleTemplate),
     bodyTemplate: String(obj.bodyTemplate ?? DEFAULT_WELCOME_CONFIG.bodyTemplate),
     cardTagline: String(obj.cardTagline ?? DEFAULT_WELCOME_CONFIG.cardTagline),
     neonBorderColor: String(obj.neonBorderColor ?? DEFAULT_WELCOME_CONFIG.neonBorderColor),
     embedAccentColor: String(obj.embedAccentColor ?? DEFAULT_WELCOME_CONFIG.embedAccentColor),
     autoRoleIds: Array.isArray(obj.autoRoleIds) ? (obj.autoRoleIds as string[]) : [],
+    verifiedRoleId: String(obj.verifiedRoleId ?? DEFAULT_WELCOME_CONFIG.verifiedRoleId),
+    pendingRoleId: String(obj.pendingRoleId ?? DEFAULT_WELCOME_CONFIG.pendingRoleId),
+    quarantineNewAccounts: Boolean(
+      obj.quarantineNewAccounts ?? DEFAULT_WELCOME_CONFIG.quarantineNewAccounts,
+    ),
+    quarantineHours: Number(obj.quarantineHours ?? DEFAULT_WELCOME_CONFIG.quarantineHours),
+    aiPersonalizedEnabled: Boolean(
+      obj.aiPersonalizedEnabled ?? DEFAULT_WELCOME_CONFIG.aiPersonalizedEnabled,
+    ),
+    returningMemberEnabled: Boolean(
+      obj.returningMemberEnabled ?? DEFAULT_WELCOME_CONFIG.returningMemberEnabled,
+    ),
+    themePreset,
   };
 }
 
@@ -555,16 +578,26 @@ const BOOLEAN_FIELDS = [
   'cardEnabled',
   'showMemberCount',
   'showAccountAge',
+  'quarantineNewAccounts',
+  'aiPersonalizedEnabled',
+  'returningMemberEnabled',
 ] as const;
 
 const STRING_FIELDS = [
   'channelName',
+  'welcomeChannelId',
+  'rulesChannelId',
+  'rolesChannelId',
   'titleTemplate',
   'bodyTemplate',
   'cardTagline',
   'neonBorderColor',
   'embedAccentColor',
+  'verifiedRoleId',
+  'pendingRoleId',
 ] as const;
+
+const NUMBER_FIELDS = ['quarantineHours'] as const;
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
@@ -610,6 +643,28 @@ app.put('/api/welcome-config', requireAdmin, async (req, res) => {
       update.autoRoleIds = ids;
     }
 
+    for (const field of NUMBER_FIELDS) {
+      if (field in body) {
+        const value = Number(body[field]);
+        if (!Number.isFinite(value) || value < 0) {
+          res.status(400).json({ error: `${field} must be a positive number` });
+          return;
+        }
+        update[field] = value;
+      }
+    }
+
+    if ('themePreset' in body) {
+      const v = body.themePreset;
+      if (typeof v !== 'string' || !(THEME_PRESETS as readonly string[]).includes(v)) {
+        res
+          .status(400)
+          .json({ error: `themePreset must be one of ${THEME_PRESETS.join(', ')}` });
+        return;
+      }
+      update.themePreset = v;
+    }
+
     const doc = await WelcomeConfig.findOneAndUpdate(
       { guildId },
       { $set: update, $setOnInsert: { guildId } },
@@ -639,6 +694,213 @@ app.put('/api/welcome-config', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Failed to update welcome config:', err);
     res.status(500).json({ error: 'Failed to update welcome config' });
+  }
+});
+
+// ====================================
+// DISCORD DISCOVERY PROXY (channels, roles)
+// ====================================
+
+const GATEWAY_INTERNAL_URL =
+  process.env.GATEWAY_INTERNAL_URL || `http://localhost:${process.env.GATEWAY_PORT || 3000}`;
+
+async function proxyGateway<T>(path: string): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+  try {
+    const url = `${GATEWAY_INTERNAL_URL}${path}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!r.ok) {
+      return { ok: false, status: r.status, error: `Gateway returned ${r.status}` };
+    }
+    const data = (await r.json()) as T;
+    return { ok: true, status: r.status, data };
+  } catch (err) {
+    return { ok: false, status: 502, error: (err as Error).message };
+  }
+}
+
+app.get('/api/discord/channels', requireAuth, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  const result = await proxyGateway<{ channels: unknown[] }>(
+    `/api/discord/channels?guildId=${encodeURIComponent(guildId)}`,
+  );
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error, channels: [] });
+  }
+  return res.json(result.data);
+});
+
+app.get('/api/discord/roles', requireAuth, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  const result = await proxyGateway<{ roles: unknown[] }>(
+    `/api/discord/roles?guildId=${encodeURIComponent(guildId)}`,
+  );
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error, roles: [] });
+  }
+  return res.json(result.data);
+});
+
+// ====================================
+// WELCOME ANALYTICS (funnel)
+// ====================================
+
+app.get('/api/welcome/analytics', requireAuth, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const events = await JoinEvent.find({ guildId, joinedAt: { $gte: since } })
+      .sort({ joinedAt: -1 })
+      .limit(500)
+      .lean()
+      .exec();
+
+    const stagesCount = {
+      joined: events.length,
+      welcomed: 0,
+      verified: 0,
+      engaged: 0,
+      quarantined: 0,
+      left: 0,
+    };
+    for (const e of events) {
+      for (const s of e.stages ?? []) {
+        if (s.stage in stagesCount) {
+          stagesCount[s.stage as keyof typeof stagesCount] += 1;
+        }
+      }
+    }
+
+    return res.json({
+      windowDays: 30,
+      total: events.length,
+      stages: stagesCount,
+      recent: events.slice(0, 20).map((e) => ({
+        userId: e.userId,
+        username: e.username,
+        displayName: e.displayName,
+        avatarUrl: e.avatarUrl,
+        joinedAt: e.joinedAt,
+        leftAt: e.leftAt ?? null,
+        priorJoins: e.priorJoins,
+        quarantined: e.quarantined,
+        verified: e.verified,
+      })),
+    });
+  } catch (err) {
+    console.error('Failed to compute welcome analytics:', err);
+    return res.status(500).json({ error: 'Failed to compute analytics' });
+  }
+});
+
+// ====================================
+// LIVE EVENTS STREAM (Server-Sent Events)
+// Subscribes to the gateway's Redis live-bus and pushes to dashboard clients.
+// ====================================
+
+const LIVE_BUS_CHANNEL = 'avenlo:live-bus';
+type LiveEvent = Record<string, unknown> & { type: string };
+
+interface SSEClient {
+  id: number;
+  res: express.Response;
+}
+const sseClients = new Set<SSEClient>();
+let sseClientCounter = 0;
+let liveBusSubscribed = false;
+
+async function ensureLiveBusSubscribed(): Promise<void> {
+  if (liveBusSubscribed || !redisClient) return;
+  try {
+    await redisClient.rawSubscribe(LIVE_BUS_CHANNEL, (_channel, message) => {
+      for (const client of sseClients) {
+        try {
+          client.res.write(`data: ${message}\n\n`);
+        } catch (err) {
+          console.debug('SSE write failed', err);
+        }
+      }
+    });
+    liveBusSubscribed = true;
+    console.log(`📡 Subscribed to ${LIVE_BUS_CHANNEL} for live dashboard events`);
+  } catch (err) {
+    console.warn('⚠️ Failed to subscribe to live bus:', err);
+  }
+}
+
+app.get('/api/welcome/live', requireAuth, async (req, res) => {
+  await ensureLiveBusSubscribed();
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const client: SSEClient = { id: ++sseClientCounter, res };
+  sseClients.add(client);
+  res.write(`event: hello\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+
+  // Replay recent buffered events (best-effort via gateway HTTP)
+  try {
+    const replay = await proxyGateway<{ events: LiveEvent[] }>(`/api/discord/live-events`);
+    if (replay.ok && replay.data?.events) {
+      for (const e of replay.data.events.slice().reverse()) {
+        res.write(`data: ${JSON.stringify(e)}\n\n`);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const ping = setInterval(() => {
+    try {
+      res.write(`: ping\n\n`);
+    } catch {
+      // ignore
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(ping);
+    sseClients.delete(client);
+  });
+});
+
+// ====================================
+// TEST WELCOME (admin button on dashboard)
+// Triggers the full welcome flow on the authenticated user.
+// ====================================
+
+app.post('/api/welcome/test', requireAdmin, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  const user = req.user as { id?: string } | undefined;
+  const userId = (req.body?.userId as string | undefined) || user?.id;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const url = `${GATEWAY_INTERNAL_URL}/api/welcome/test`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guildId, userId }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      const text = await r.text();
+      return res.status(r.status).json({ error: text });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Test welcome proxy failed:', err);
+    return res.status(502).json({ error: (err as Error).message });
   }
 });
 

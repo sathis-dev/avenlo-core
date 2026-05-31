@@ -3,7 +3,7 @@
 // Liquid Glass control panel + WYSIWYG live preview
 // ====================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import {
@@ -16,13 +16,94 @@ import {
   CalendarClock,
   Mail,
   Power,
+  Shield,
+  Brain,
+  Repeat,
+  Palette,
+  Radio,
+  PlayCircle,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   useDashboardStore,
   type WelcomeConfigState,
+  type ThemePresetKey,
+  type LiveJoinEvent,
   DEFAULT_WELCOME_CONFIG_STATE,
 } from '../stores/dashboardStore';
 import { useAuthStore } from '../stores/authStore';
+
+// ====================================
+// THEME PRESET DEFINITIONS (mirror of server-side)
+// ====================================
+
+interface ThemePresetDef {
+  key: ThemePresetKey;
+  label: string;
+  description: string;
+  neonBorderColor: string;
+  embedAccentColor: string;
+  cardTagline: string;
+  titleTemplate: string;
+}
+
+const THEME_PRESET_DEFS: ThemePresetDef[] = [
+  {
+    key: 'cyber',
+    label: 'Cyber Neon',
+    description: 'Cyan + gold, signature Avenlo look',
+    neonBorderColor: '#00FFAA',
+    embedAccentColor: '#FFD700',
+    cardTagline: 'In Code We Trust',
+    titleTemplate: '✨ Welcome, {member}',
+  },
+  {
+    key: 'gold',
+    label: 'Royal Gold',
+    description: 'All-gold, premium feel',
+    neonBorderColor: '#FFD700',
+    embedAccentColor: '#FFD700',
+    cardTagline: 'The Sovereign Lounge',
+    titleTemplate: '👑 Welcome, {member}',
+  },
+  {
+    key: 'halloween',
+    label: 'Halloween',
+    description: 'Orange + purple',
+    neonBorderColor: '#FF6A00',
+    embedAccentColor: '#9D00FF',
+    cardTagline: 'Welcome to the dark side',
+    titleTemplate: '🎃 Welcome, {member}',
+  },
+  {
+    key: 'christmas',
+    label: 'Christmas',
+    description: 'Festive red + green',
+    neonBorderColor: '#1ED760',
+    embedAccentColor: '#FF3232',
+    cardTagline: 'Tis the season',
+    titleTemplate: '🎄 Welcome, {member}',
+  },
+  {
+    key: 'minimal',
+    label: 'Minimalist',
+    description: 'Monochrome whites',
+    neonBorderColor: '#FFFFFF',
+    embedAccentColor: '#CCCCCC',
+    cardTagline: 'Quiet luxury',
+    titleTemplate: 'Welcome, {member}',
+  },
+  {
+    key: 'custom',
+    label: 'Custom',
+    description: 'Free-form — tweak each value yourself',
+    neonBorderColor: '#00FFAA',
+    embedAccentColor: '#FFD700',
+    cardTagline: 'In Code We Trust',
+    titleTemplate: '✨ Welcome, {member}',
+  },
+];
 
 // ====================================
 // TYPES
@@ -51,6 +132,54 @@ interface ColorFieldProps {
   description: string;
   value: string;
   onChange: (next: string) => void;
+}
+
+interface SelectOption {
+  value: string;
+  label: string;
+  sublabel?: string | null;
+}
+
+interface SelectFieldProps {
+  label: string;
+  description?: string;
+  value: string;
+  options: SelectOption[];
+  onChange: (next: string) => void;
+  emptyLabel?: string;
+}
+
+function SelectField({
+  label,
+  description,
+  value,
+  options,
+  onChange,
+  emptyLabel,
+}: SelectFieldProps) {
+  return (
+    <label className="block">
+      <div className="text-xs uppercase tracking-wider text-white/60 mb-1">{label}</div>
+      {description && <div className="text-xs text-white/40 mb-2">{description}</div>}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={
+          'w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white ' +
+          'transition-all duration-300 ' +
+          'focus:outline-none focus:border-[#00FFAA]/70 ' +
+          'focus:shadow-[0_0_20px_rgba(0,255,170,0.4)] focus:bg-black/60'
+        }
+      >
+        <option value="">{emptyLabel ?? '— not configured —'}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}{o.sublabel ? ` · ${o.sublabel}` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 // ====================================
@@ -360,21 +489,85 @@ export default function WelcomeConfig() {
     fetchWelcomeConfig,
     updateWelcomeConfig,
     saveWelcomeConfig,
+    discordChannels,
+    discordRoles,
+    fetchDiscordDirectory,
+    welcomeAnalytics,
+    fetchWelcomeAnalytics,
+    liveEvents,
+    pushLiveEvent,
+    testWelcome,
   } = useDashboardStore();
 
   const { user } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const sseRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await fetchWelcomeConfig();
+      await Promise.all([
+        fetchWelcomeConfig(),
+        fetchDiscordDirectory(),
+        fetchWelcomeAnalytics(),
+      ]);
       if (!cancelled) setHydrated(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [fetchWelcomeConfig]);
+  }, [fetchWelcomeConfig, fetchDiscordDirectory, fetchWelcomeAnalytics]);
+
+  // Live events stream
+  useEffect(() => {
+    if (sseRef.current) sseRef.current.close();
+    const es = new EventSource('/api/welcome/live', { withCredentials: true });
+    es.onmessage = (msg) => {
+      try {
+        const evt: LiveJoinEvent = JSON.parse(msg.data);
+        if (evt && typeof evt.type === 'string') pushLiveEvent(evt);
+      } catch {
+        // ignore
+      }
+    };
+    es.onerror = () => {
+      // browsers auto-reconnect; nothing to do
+    };
+    sseRef.current = es;
+    return () => {
+      es.close();
+      sseRef.current = null;
+    };
+  }, [pushLiveEvent]);
+
+  const applyThemePreset = (key: ThemePresetKey): void => {
+    const def = THEME_PRESET_DEFS.find((p) => p.key === key);
+    if (!def) return;
+    if (key === 'custom') {
+      updateWelcomeConfig({ themePreset: 'custom' });
+      return;
+    }
+    updateWelcomeConfig({
+      themePreset: key,
+      neonBorderColor: def.neonBorderColor,
+      embedAccentColor: def.embedAccentColor,
+      cardTagline: def.cardTagline,
+      titleTemplate: def.titleTemplate,
+    });
+  };
+
+  const handleTestWelcome = async (): Promise<void> => {
+    setTesting(true);
+    const res = await testWelcome();
+    setTesting(false);
+    if (res.ok) {
+      toast.success('Test welcome fired — check the channel + your DMs');
+      void fetchWelcomeAnalytics();
+    } else {
+      toast.error(res.error);
+    }
+  };
 
   const previewUsername = useMemo(() => user?.username || 'NewMember', [user]);
   const previewAvatar = useMemo(() => {
@@ -468,6 +661,71 @@ export default function WelcomeConfig() {
           className="space-y-6"
         >
           <GlassPanel className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-white/90 font-semibold mb-1 flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-[#00FFAA]" /> Theme preset
+                </div>
+                <div className="text-white/40 text-xs">
+                  Apply a curated color + template set — click “Custom” to tweak everything manually.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleTestWelcome}
+                disabled={testing}
+                className={
+                  'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold ' +
+                  'bg-[#FFD700]/15 border border-[#FFD700]/40 text-[#FFD700] ' +
+                  'transition-all duration-300 ' +
+                  'hover:bg-[#FFD700]/25 hover:shadow-[0_0_18px_rgba(255,215,0,0.5)] ' +
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                }
+              >
+                <PlayCircle className="w-4 h-4" />
+                {testing ? 'Firing…' : 'Test on me'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {THEME_PRESET_DEFS.map((def) => {
+                const active = welcomeConfig.themePreset === def.key;
+                return (
+                  <button
+                    type="button"
+                    key={def.key}
+                    onClick={() => applyThemePreset(def.key)}
+                    className={
+                      'group text-left p-3 rounded-xl border transition-all duration-300 ' +
+                      (active
+                        ? 'border-[#00FFAA] bg-[#00FFAA]/10 shadow-[0_0_24px_rgba(0,255,170,0.45)]'
+                        : 'border-white/10 bg-white/5 hover:border-[#00FFAA]/40 hover:bg-white/10')
+                    }
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="w-4 h-4 rounded-full"
+                        style={{
+                          background: def.neonBorderColor,
+                          boxShadow: `0 0 10px ${def.neonBorderColor}88`,
+                        }}
+                      />
+                      <span
+                        className="w-4 h-4 rounded-full"
+                        style={{
+                          background: def.embedAccentColor,
+                          boxShadow: `0 0 10px ${def.embedAccentColor}88`,
+                        }}
+                      />
+                      <span className="text-sm font-semibold text-white">{def.label}</span>
+                    </div>
+                    <div className="text-xs text-white/50 leading-snug">{def.description}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="p-6">
             <div className="text-white/90 font-semibold mb-1">Toggles</div>
             <div className="text-white/40 text-xs mb-4">
               Control which subsystems fire when a member joins.
@@ -515,6 +773,104 @@ export default function WelcomeConfig() {
                 icon={<CalendarClock className="w-4 h-4" />}
                 value={welcomeConfig.showAccountAge}
                 onChange={(v) => updateWelcomeConfig({ showAccountAge: v })}
+              />
+              <ToggleField
+                label="Returning member"
+                description="Detect rejoins and greet them with a ‘Welcome back’."
+                icon={<Repeat className="w-4 h-4" />}
+                value={welcomeConfig.returningMemberEnabled}
+                onChange={(v) => updateWelcomeConfig({ returningMemberEnabled: v })}
+              />
+              <ToggleField
+                label="AI personalized line"
+                description="Generate a 1-line personalized greeting via OpenAI."
+                icon={<Brain className="w-4 h-4" />}
+                value={welcomeConfig.aiPersonalizedEnabled}
+                onChange={(v) => updateWelcomeConfig({ aiPersonalizedEnabled: v })}
+              />
+              <ToggleField
+                label="Quarantine new accounts"
+                description="Auto-apply a Pending role to brand-new Discord accounts."
+                icon={<Shield className="w-4 h-4" />}
+                value={welcomeConfig.quarantineNewAccounts}
+                onChange={(v) => updateWelcomeConfig({ quarantineNewAccounts: v })}
+              />
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="p-6">
+            <div className="text-white/90 font-semibold mb-1 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-[#00FFAA]" /> Channels & roles
+            </div>
+            <div className="text-white/40 text-xs mb-4">
+              Pick real channels and roles from your server. Channel-ID is preferred over name —
+              this is how the bot handles emoji-prefixed names like <code>🍑・welcome</code>.
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <SelectField
+                label="Welcome channel"
+                description="Where the welcome card is posted."
+                value={welcomeConfig.welcomeChannelId}
+                onChange={(v) => updateWelcomeConfig({ welcomeChannelId: v })}
+                options={discordChannels.map((c) => ({
+                  value: c.id,
+                  label: `#${c.name}`,
+                  sublabel: c.parentName,
+                }))}
+                emptyLabel="— fall back to channel name —"
+              />
+              <SelectField
+                label="Rules channel"
+                description="Linked in welcome embed buttons."
+                value={welcomeConfig.rulesChannelId}
+                onChange={(v) => updateWelcomeConfig({ rulesChannelId: v })}
+                options={discordChannels.map((c) => ({
+                  value: c.id,
+                  label: `#${c.name}`,
+                  sublabel: c.parentName,
+                }))}
+              />
+              <SelectField
+                label="Self-roles channel"
+                description="Linked from the ‘Get Roles’ button."
+                value={welcomeConfig.rolesChannelId}
+                onChange={(v) => updateWelcomeConfig({ rolesChannelId: v })}
+                options={discordChannels.map((c) => ({
+                  value: c.id,
+                  label: `#${c.name}`,
+                  sublabel: c.parentName,
+                }))}
+              />
+              <SelectField
+                label="Verified role"
+                description="Assigned when a user clicks “Verify” in DM."
+                value={welcomeConfig.verifiedRoleId}
+                onChange={(v) => updateWelcomeConfig({ verifiedRoleId: v })}
+                options={discordRoles.map((r) => ({
+                  value: r.id,
+                  label: r.name,
+                }))}
+              />
+              <SelectField
+                label="Pending / quarantine role"
+                description="Auto-assigned to suspicious new accounts."
+                value={welcomeConfig.pendingRoleId}
+                onChange={(v) => updateWelcomeConfig({ pendingRoleId: v })}
+                options={discordRoles.map((r) => ({
+                  value: r.id,
+                  label: r.name,
+                }))}
+              />
+              <TextField
+                label="Quarantine threshold (hours)"
+                description="Accounts younger than this get the pending role."
+                value={String(welcomeConfig.quarantineHours)}
+                onChange={(v) =>
+                  updateWelcomeConfig({
+                    quarantineHours: Number.parseInt(v, 10) || 0,
+                  })
+                }
+                placeholder="24"
               />
             </div>
           </GlassPanel>
@@ -617,6 +973,98 @@ export default function WelcomeConfig() {
               guildName="Avenlo Studio"
               memberCount={1337}
             />
+          </GlassPanel>
+
+          {/* ===== FUNNEL ANALYTICS ===== */}
+          <GlassPanel className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-white/90 font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#00FFAA]" /> Onboarding funnel
+                </div>
+                <div className="text-white/40 text-xs">
+                  Last {welcomeAnalytics?.windowDays ?? 30} days · {welcomeAnalytics?.total ?? 0} joins
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void fetchWelcomeAnalytics()}
+                className="text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 transition"
+              >
+                Refresh
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(['joined', 'welcomed', 'verified', 'engaged', 'quarantined', 'left'] as const).map(
+                (stage) => {
+                  const count = welcomeAnalytics?.stages?.[stage] ?? 0;
+                  const total = welcomeAnalytics?.total || 1;
+                  const pct = Math.round((count / total) * 100);
+                  return (
+                    <div
+                      key={stage}
+                      className="rounded-xl bg-white/5 border border-white/10 p-3"
+                    >
+                      <div className="text-[10px] uppercase tracking-widest text-white/40">
+                        {stage}
+                      </div>
+                      <div className="text-2xl font-bold text-white">{count}</div>
+                      <div className="text-xs text-white/40">{pct}%</div>
+                    </div>
+                  );
+                },
+              )}
+            </div>
+          </GlassPanel>
+
+          {/* ===== LIVE JOINS FEED ===== */}
+          <GlassPanel className="p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Radio className="w-4 h-4 text-[#00FFAA] animate-pulse" />
+              <div className="text-white/90 font-semibold">Live joins</div>
+              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#00FFAA]/10 border border-[#00FFAA]/30 text-[#00FFAA]">
+                SSE
+              </span>
+            </div>
+            {liveEvents.length === 0 ? (
+              <div className="text-white/40 text-sm py-8 text-center">
+                Waiting for activity… new joins will appear here in real-time.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {liveEvents.slice(0, 12).map((evt, idx) => (
+                  <div
+                    key={`${evt.userId ?? 'na'}-${evt.at}-${idx}`}
+                    className="flex items-center gap-3 rounded-lg bg-white/5 border border-white/10 p-2"
+                  >
+                    {evt.avatarUrl ? (
+                      <img
+                        src={evt.avatarUrl}
+                        alt=""
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-white/10" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-white truncate">
+                        {evt.displayName ?? evt.username ?? 'unknown'}
+                      </div>
+                      <div className="text-[11px] text-white/40 truncate">
+                        {evt.type.replace('member:', '')}
+                        {evt.memberCount ? ` · #${evt.memberCount}` : ''}
+                        {evt.returning ? ' · returning' : ''}
+                      </div>
+                    </div>
+                    {evt.quarantined && (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-300 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-full">
+                        <AlertTriangle className="w-3 h-3" /> quarantined
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassPanel>
         </motion.div>
       </div>

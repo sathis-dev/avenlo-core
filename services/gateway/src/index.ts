@@ -10,8 +10,9 @@ config({ path: resolve(__dirname, '../../../.env') });
 
 import { GatewayClient } from './client';
 import { initRedis, initMongo, initEncryption, createLogger, RedisClient } from '@avenlo/shared';
-import { startHealthServer } from './health';
+import { startHealthServer, attachGatewayClient } from './health';
 import { welcomeConfigStore } from './handlers/WelcomeConfigStore';
+import { liveBus } from './handlers/LiveBus';
 
 const logger = createLogger('gateway');
 
@@ -93,11 +94,14 @@ async function bootstrap(): Promise<void> {
       } catch (err) {
         logger.warn('⚠️ Failed to subscribe welcome config store to Redis', err);
       }
+      // Live bus uses raw Redis pub/sub for cross-service dashboard widgets.
+      liveBus.setRedis(redis);
     }
 
     // Start Discord Client
     const client = new GatewayClient();
     await client.start();
+    attachGatewayClient(client);
     logger.info('✅ Discord client connected');
     logger.info('🎉 Gateway fully initialized and running!');
 
