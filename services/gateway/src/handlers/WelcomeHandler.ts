@@ -20,33 +20,35 @@ import {
   AvenloColors,
   AvenloBranding,
   type WelcomeConfigData,
+  JoinEvent,
+  type IJoinEvent,
 } from '@avenlo/shared';
 import { buildWelcomeAttachment } from './WelcomeCard';
 import { welcomeConfigStore } from './WelcomeConfigStore';
+import {
+  resolveWelcomeChannel,
+  resolveTextChannel,
+  resolveChannel,
+} from './ChannelResolver';
+import { liveBus } from './LiveBus';
+import { generatePersonalizedGreeting } from './AIWelcome';
 
 const logger = createLogger('welcome-system');
 
 // ====================================
 // DYNAMIC CHANNEL FINDER
+// (delegates to ChannelResolver, which handles emoji-prefixed channel names)
 // ====================================
 
-function findChannel(guild: Guild, name: string): string {
-  const channel = guild.channels.cache.find(
-    c => c.name.toLowerCase().replace(/-/g, '') === name.toLowerCase().replace(/-/g, '') ||
-         c.name.toLowerCase() === name.toLowerCase()
-  );
-  return channel ? `<#${channel.id}>` : `#${name}`;
+function mentionChannel(guild: Guild, idOrName: string, fallbackName: string): string {
+  const c = resolveChannel(guild, idOrName) ?? resolveChannel(guild, fallbackName);
+  return c ? `<#${c.id}>` : `#${fallbackName}`;
 }
 
-function findChannelId(guild: Guild, name: string): string | null {
-  const channel = guild.channels.cache.find(
-    c => c.name.toLowerCase().replace(/-/g, '') === name.toLowerCase().replace(/-/g, '') ||
-         c.name.toLowerCase() === name.toLowerCase()
-  );
-  return channel?.id || null;
-}
-
-function getChannelLinks(guild: Guild): {
+function getChannelLinks(
+  guild: Guild,
+  config: WelcomeConfigData,
+): {
   welcome: string;
   rules: string;
   information: string;
@@ -55,12 +57,12 @@ function getChannelLinks(guild: Guild): {
   faq: string;
 } {
   return {
-    welcome: findChannel(guild, 'welcome'),
-    rules: findChannel(guild, 'rules'),
-    information: findChannel(guild, 'information'),
-    roles: findChannel(guild, 'roles'),
-    tickets: findChannel(guild, 'tickets'),
-    faq: findChannel(guild, 'faq-knowledge-base'),
+    welcome: mentionChannel(guild, config.welcomeChannelId || config.channelName, 'welcome'),
+    rules: mentionChannel(guild, config.rulesChannelId, 'rules'),
+    information: mentionChannel(guild, '', 'information'),
+    roles: mentionChannel(guild, config.rolesChannelId, 'roles'),
+    tickets: mentionChannel(guild, '', 'tickets'),
+    faq: mentionChannel(guild, '', 'faq-knowledge-base'),
   };
 }
 
@@ -140,6 +142,12 @@ function hexToInt(hex: string): number {
 interface BuildEmbedOptions {
   /** When provided, the embed will reference the welcome card via attachment://filename */
   cardFilename?: string;
+  /** Optional AI-generated personalized greeting (1-2 lines) */
+  personalizedGreeting?: string;
+  /** When true, render "Welcome back" style messaging */
+  returningMember?: boolean;
+  /** When true, render a warning that the account was auto-quarantined */
+  quarantined?: boolean;
 }
 
 /**
@@ -155,7 +163,7 @@ export function buildWelcomeEmbed(
   const memberCount = guild.memberCount;
   const accountAge = getAccountAgeWarning(member.user.createdAt);
   const milestone = getMemberMilestone(memberCount);
-  const ch = getChannelLinks(guild);
+  const ch = getChannelLinks(guild, config);
 
   const interpVars: Record<string, string> = {
     member: member.user.displayName,
@@ -164,8 +172,21 @@ export function buildWelcomeEmbed(
     memberCount: memberCount.toLocaleString(),
   };
 
-  const title = interpolate(config.titleTemplate, interpVars);
-  const body = interpolate(config.bodyTemplate, interpVars);
+  const title = opts.returningMember
+    ? `🔁 Welcome back, ${member.user.displayName}`
+    : interpolate(config.titleTemplate, interpVars);
+
+  const baseBody = interpolate(config.bodyTemplate, interpVars);
+  const body = opts.personalizedGreeting
+    ? `${opts.personalizedGreeting}\n\n${baseBody}`
+    : baseBody;
+
+  const banners: string[] = [];
+  if (opts.returningMember) banners.push('🔁 **Returning member detected** — welcome home!');
+  if (opts.quarantined)
+    banners.push(
+      '🔒 **Account auto-quarantined** — your account is very new; a moderator will review shortly.',
+    );
 
   const embed = new EmbedBuilder()
     .setColor(hexToInt(config.embedAccentColor))
@@ -175,6 +196,7 @@ export function buildWelcomeEmbed(
     })
     .setTitle(title)
     .setDescription(
+      (banners.length ? banners.join('\n') + '\n\n' : '') +
       `${body}\n` +
       (milestone ? `\n${milestone}\n` : '') +
       `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━`
@@ -262,9 +284,15 @@ export function buildWelcomeButtons(): ActionRowBuilder<ButtonBuilder> {
 // DM WELCOME MESSAGE
 // ====================================
 
+interface SendWelcomeDMOptions {
+  personalizedGreeting?: string;
+  showVerifyButton?: boolean;
+}
+
 export async function sendWelcomeDM(
   member: GuildMember,
-  config: WelcomeConfigData
+  config: WelcomeConfigData,
+  opts: SendWelcomeDMOptions = {},
 ): Promise<boolean> {
   if (!config.dmEnabled) return false;
 
@@ -278,8 +306,12 @@ export async function sendWelcomeDM(
       .setTitle(`Welcome, ${member.user.displayName}!`)
       .setDescription(
         `Hey **${member.user.displayName}**!\n\n` +
+        (opts.personalizedGreeting ? `${opts.personalizedGreeting}\n\n` : '') +
         `Thanks for joining **${member.guild.name}**.\n` +
         `${config.cardTagline}\n\n` +
+        (opts.showVerifyButton
+          ? `Tap **Verify Me** below to unlock the rest of the server.\n\n`
+          : '') +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━`
       )
       .addFields(
@@ -306,21 +338,15 @@ export async function sendWelcomeDM(
       .setFooter({ text: AvenloBranding.footer })
       .setTimestamp();
 
-    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setLabel('🏠 Go to Server')
-        .setStyle(ButtonStyle.Link)
-        .setURL(`https://discord.com/channels/${member.guild.id}`),
-      new ButtonBuilder()
-        .setLabel('🌐 Our Website')
-        .setStyle(ButtonStyle.Link)
-        .setURL(AvenloBranding.website),
+    const buttons = buildDMVerificationButtons(
+      member.guild.id,
+      opts.showVerifyButton ?? false,
     );
 
     await member.send({ embeds: [embed], components: [buttons] });
     return true;
-  } catch {
-    logger.debug(`Could not send welcome DM to ${member.user.tag}`);
+  } catch (err) {
+    logger.debug(`Could not send welcome DM to ${member.user.tag}`, err);
     return false;
   }
 }
@@ -383,18 +409,111 @@ export async function assignAutoRoles(
 }
 
 // ====================================
-// CHANNEL RESOLUTION (config-driven)
+// JOIN EVENT LOGGING + RETURNING MEMBER DETECTION
 // ====================================
 
-function findWelcomeChannel(guild: Guild, name: string): TextChannel | null {
-  const normalized = name.toLowerCase().replace(/-/g, '');
-  const channel = guild.channels.cache.find(
-    c =>
-      c.isTextBased() &&
-      (c.name.toLowerCase() === name.toLowerCase() ||
-        c.name.toLowerCase().replace(/-/g, '') === normalized)
+async function recordJoinEvent(
+  member: GuildMember,
+  config: WelcomeConfigData,
+  personalizedGreeting?: string,
+): Promise<IJoinEvent> {
+  const priorJoins = config.returningMemberEnabled
+    ? await JoinEvent.countDocuments({
+        guildId: member.guild.id,
+        userId: member.id,
+      })
+    : 0;
+
+  const evt = await JoinEvent.create({
+    guildId: member.guild.id,
+    userId: member.id,
+    username: member.user.username,
+    displayName: member.user.displayName ?? member.user.username,
+    avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+    accountCreatedAt: member.user.createdAt,
+    joinedAt: new Date(),
+    priorJoins,
+    stages: [{ stage: 'joined', at: new Date() }],
+    personalizedGreeting,
+  });
+  return evt;
+}
+
+async function appendStage(
+  guildId: string,
+  userId: string,
+  stage: IJoinEvent['stages'][number]['stage'],
+): Promise<void> {
+  try {
+    await JoinEvent.findOneAndUpdate(
+      { guildId, userId },
+      { $push: { stages: { stage, at: new Date() } } },
+      { sort: { joinedAt: -1 } },
+    );
+  } catch (err) {
+    logger.debug('Failed to append stage', err);
+  }
+}
+
+// ====================================
+// ACCOUNT SAFETY / QUARANTINE
+// ====================================
+
+async function applyQuarantineIfSuspicious(
+  member: GuildMember,
+  config: WelcomeConfigData,
+): Promise<boolean> {
+  if (!config.quarantineNewAccounts || !config.pendingRoleId) return false;
+  const ageHours =
+    (Date.now() - member.user.createdAt.getTime()) / (1000 * 60 * 60);
+  if (ageHours >= config.quarantineHours) return false;
+  try {
+    const role = member.guild.roles.cache.get(config.pendingRoleId);
+    if (role && !member.roles.cache.has(role.id)) {
+      await member.roles.add(
+        role,
+        `Auto-quarantine: account age ${ageHours.toFixed(1)}h < ${config.quarantineHours}h`,
+      );
+      logger.warn(
+        `🔒 Quarantined ${member.user.tag} (account age ${ageHours.toFixed(1)}h)`,
+      );
+      return true;
+    }
+  } catch (err) {
+    logger.error('Failed to apply quarantine role', err);
+  }
+  return false;
+}
+
+// ====================================
+// DM VERIFICATION BUTTON BUILDER
+// ====================================
+
+function buildDMVerificationButtons(
+  guildId: string,
+  showVerify: boolean,
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (showVerify) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('welcome:verify')
+        .setLabel('Verify Me')
+        .setEmoji('✅')
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+  row.addComponents(
+    new ButtonBuilder()
+      .setLabel('🏠 Go to Server')
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://discord.com/channels/${guildId}`),
+    new ButtonBuilder()
+      .setLabel('🌐 Website')
+      .setStyle(ButtonStyle.Link)
+      .setURL(AvenloBranding.website),
   );
-  return (channel as TextChannel | undefined) ?? null;
+  return row;
 }
 
 // ====================================
@@ -410,11 +529,37 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
     return;
   }
 
-  const welcomeChannel =
-    findWelcomeChannel(guild, config.channelName) ??
-    findWelcomeChannel(guild, 'welcome') ??
-    findWelcomeChannel(guild, 'general') ??
-    (guild.systemChannel as TextChannel | null);
+  // Optional: AI personalized 1-liner
+  let personalizedGreeting: string | undefined;
+  if (config.aiPersonalizedEnabled) {
+    try {
+      personalizedGreeting = await generatePersonalizedGreeting({
+        username: member.user.username,
+        displayName: member.user.displayName ?? member.user.username,
+        guildName: guild.name,
+      });
+    } catch (err) {
+      logger.debug('AI personalized greeting failed (continuing without)', err);
+    }
+  }
+
+  // Persistent join log + returning-member detection
+  const joinEvt = await recordJoinEvent(member, config, personalizedGreeting);
+
+  // Account-safety quarantine
+  const quarantined = await applyQuarantineIfSuspicious(member, config);
+  if (quarantined) {
+    await JoinEvent.updateOne(
+      { _id: joinEvt._id },
+      { quarantined: true, $push: { stages: { stage: 'quarantined', at: new Date() } } },
+    );
+  }
+
+  // Resolve welcome channel using the new robust resolver
+  const welcomeChannel = resolveWelcomeChannel(guild, {
+    welcomeChannelId: config.welcomeChannelId,
+    channelName: config.channelName,
+  });
 
   if (welcomeChannel) {
     let attachment: AttachmentBuilder | undefined;
@@ -430,7 +575,12 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
       }
     }
 
-    const embed = buildWelcomeEmbed(member, config, { cardFilename });
+    const embed = buildWelcomeEmbed(member, config, {
+      cardFilename,
+      personalizedGreeting,
+      returningMember: joinEvt.priorJoins > 0,
+      quarantined,
+    });
     const buttons = buildWelcomeButtons();
 
     await welcomeChannel.send({
@@ -439,18 +589,44 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
       components: [buttons],
       files: attachment ? [attachment] : undefined,
     });
+    await appendStage(guild.id, member.id, 'welcomed');
   } else {
-    logger.warn(`No welcome channel found for ${guild.name}`);
+    logger.warn(
+      `No welcome channel found for ${guild.name} (configured: id="${config.welcomeChannelId}", name="${config.channelName}")`,
+    );
   }
 
-  await sendWelcomeDM(member, config);
+  await sendWelcomeDM(member, config, {
+    personalizedGreeting,
+    showVerifyButton: Boolean(config.verifiedRoleId) && !quarantined,
+  });
 
   const assignedRoles = await assignAutoRoles(member, config);
   if (assignedRoles.length > 0) {
     logger.debug(`Assigned ${assignedRoles.length} auto-roles to ${member.user.tag}`);
   }
 
-  logger.info(`👋 ${member.user.tag} joined ${guild.name} (Member #${guild.memberCount})`);
+  // Broadcast over Socket.IO live bus for the dashboard's live-joins widget
+  liveBus.broadcast({
+    type: 'member:join',
+    guildId: guild.id,
+    userId: member.id,
+    username: member.user.username,
+    displayName: member.user.displayName ?? member.user.username,
+    avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+    memberCount: guild.memberCount,
+    quarantined,
+    returning: joinEvt.priorJoins > 0,
+    personalizedGreeting,
+    at: new Date().toISOString(),
+  });
+
+  logger.info(
+    `👋 ${member.user.tag} joined ${guild.name} (Member #${guild.memberCount}` +
+      (joinEvt.priorJoins > 0 ? `, returning, prior=${joinEvt.priorJoins}` : '') +
+      (quarantined ? ', QUARANTINED' : '') +
+      ')',
+  );
 }
 
 export async function handleMemberLeave(
@@ -459,16 +635,37 @@ export async function handleMemberLeave(
   const guild = member.guild;
   const config = await welcomeConfigStore.get(guild.id);
 
-  const goodbyeChannel =
-    findWelcomeChannel(guild, config.channelName) ??
-    findWelcomeChannel(guild, 'welcome') ??
-    findWelcomeChannel(guild, 'general') ??
-    (guild.systemChannel as TextChannel | null);
+  const goodbyeChannel = resolveWelcomeChannel(guild, {
+    welcomeChannelId: config.welcomeChannelId,
+    channelName: config.channelName,
+  });
 
   if (goodbyeChannel) {
     const embed = buildGoodbyeEmbed(member);
     await goodbyeChannel.send({ embeds: [embed] });
   }
+
+  try {
+    await JoinEvent.findOneAndUpdate(
+      { guildId: guild.id, userId: member.user.id },
+      {
+        leftAt: new Date(),
+        $push: { stages: { stage: 'left', at: new Date() } },
+      },
+      { sort: { joinedAt: -1 } },
+    );
+  } catch (err) {
+    logger.debug('Failed to update leftAt on JoinEvent', err);
+  }
+
+  liveBus.broadcast({
+    type: 'member:leave',
+    guildId: guild.id,
+    userId: member.user.id,
+    username: member.user.tag,
+    memberCount: guild.memberCount,
+    at: new Date().toISOString(),
+  });
 
   logger.info(`👋 ${member.user.tag} left ${guild.name} (Now ${guild.memberCount} members)`);
 }
@@ -487,11 +684,15 @@ export async function handleWelcomeButton(
     return;
   }
 
-  const ch = getChannelLinks(guild);
+  const config = await welcomeConfigStore.get(guild.id);
+  const ch = getChannelLinks(guild, config);
 
-  const rulesChannelId = findChannelId(guild, 'rules');
-  const ticketsChannelId = findChannelId(guild, 'tickets');
-  const faqChannelId = findChannelId(guild, 'faq-knowledge-base');
+  const rulesChannel = resolveTextChannel(guild, config.rulesChannelId || 'rules');
+  const ticketsChannel = resolveTextChannel(guild, 'tickets');
+  const faqChannel = resolveTextChannel(guild, 'faq-knowledge-base');
+  const rulesChannelId = rulesChannel?.id ?? null;
+  const ticketsChannelId = ticketsChannel?.id ?? null;
+  const faqChannelId = faqChannel?.id ?? null;
 
   switch (action) {
     case 'rules': {
@@ -538,6 +739,66 @@ export async function handleWelcomeButton(
         )
         .setFooter({ text: AvenloBranding.footer });
       await interaction.reply({ embeds: [rolesEmbed], ephemeral: true });
+      break;
+    }
+
+    case 'verify': {
+      try {
+        const role =
+          (config.verifiedRoleId && guild.roles.cache.get(config.verifiedRoleId)) || null;
+        if (!role) {
+          await interaction.reply({
+            content: '⚠️ No verified role is configured. Ask an admin to set one in the dashboard.',
+            ephemeral: true,
+          });
+          return;
+        }
+        const targetMember =
+          interaction.member && 'roles' in interaction.member
+            ? await guild.members.fetch(interaction.user.id).catch(() => null)
+            : await guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!targetMember) {
+          await interaction.reply({
+            content: '⚠️ Could not locate your member object — try again from inside the server.',
+            ephemeral: true,
+          });
+          return;
+        }
+        if (targetMember.roles.cache.has(role.id)) {
+          await interaction.reply({
+            content: '✅ You are already verified.',
+            ephemeral: true,
+          });
+          return;
+        }
+        await targetMember.roles.add(role, 'Welcome verification');
+        await JoinEvent.findOneAndUpdate(
+          { guildId: guild.id, userId: interaction.user.id },
+          {
+            verified: true,
+            verifiedAt: new Date(),
+            $push: { stages: { stage: 'verified', at: new Date() } },
+          },
+          { sort: { joinedAt: -1 } },
+        );
+        liveBus.broadcast({
+          type: 'member:verified',
+          guildId: guild.id,
+          userId: interaction.user.id,
+          username: interaction.user.username,
+          at: new Date().toISOString(),
+        });
+        await interaction.reply({
+          content: `✅ Verified! You now have the **${role.name}** role.`,
+          ephemeral: true,
+        });
+      } catch (err) {
+        logger.error('Verification failed', err);
+        await interaction.reply({
+          content: '⚠️ Verification failed. A moderator has been notified.',
+          ephemeral: true,
+        });
+      }
       break;
     }
 

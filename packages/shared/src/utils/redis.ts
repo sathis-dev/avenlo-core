@@ -165,6 +165,29 @@ export class RedisClient {
     return event.id;
   }
 
+  /**
+   * Publish a raw (already-serialized) string to an arbitrary channel.
+   * Useful for ad-hoc fan-out buses (e.g. dashboard live widgets) that don't
+   * need the typed `BaseEvent` envelope.
+   */
+  async rawPublish(channel: string, message: string): Promise<number> {
+    return this.publisher.publish(channel, message);
+  }
+
+  /**
+   * Subscribe to a raw channel and receive each message as a string.
+   * The handler is invoked with the channel name + payload string.
+   */
+  async rawSubscribe(
+    channel: string,
+    handler: (channel: string, message: string) => void,
+  ): Promise<void> {
+    await this.subscriber.subscribe(channel);
+    this.subscriber.on('message', (ch, msg) => {
+      if (ch === channel) handler(ch, msg);
+    });
+  }
+
   // ====================================
   // SESSION MANAGEMENT
   // ====================================
