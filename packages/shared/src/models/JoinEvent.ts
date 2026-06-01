@@ -8,6 +8,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export type JoinFunnelStage =
   | 'joined'
   | 'welcomed'
+  | 'accepted-rules'
   | 'verified'
   | 'engaged'
   | 'quarantined'
@@ -75,7 +76,15 @@ const JoinEventSchema = new Schema<IJoinEvent>(
         _id: false,
         stage: {
           type: String,
-          enum: ['joined', 'welcomed', 'verified', 'engaged', 'quarantined', 'left'],
+          enum: [
+            'joined',
+            'welcomed',
+            'accepted-rules',
+            'verified',
+            'engaged',
+            'quarantined',
+            'left',
+          ],
           required: true,
         },
         at: { type: Date, required: true, default: Date.now },

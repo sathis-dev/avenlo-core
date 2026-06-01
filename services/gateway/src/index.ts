@@ -12,6 +12,7 @@ import { GatewayClient } from './client';
 import { initRedis, initMongo, initEncryption, createLogger, RedisClient } from '@avenlo/shared';
 import { startHealthServer, attachGatewayClient } from './health';
 import { welcomeConfigStore } from './handlers/WelcomeConfigStore';
+import { rulesConfigStore } from './handlers/RulesConfigStore';
 import { liveBus } from './handlers/LiveBus';
 
 const logger = createLogger('gateway');
@@ -93,6 +94,11 @@ async function bootstrap(): Promise<void> {
         await welcomeConfigStore.startSubscription(redis);
       } catch (err) {
         logger.warn('⚠️ Failed to subscribe welcome config store to Redis', err);
+      }
+      try {
+        await rulesConfigStore.startSubscription(redis);
+      } catch (err) {
+        logger.warn('⚠️ Failed to subscribe rules config store to Redis', err);
       }
       // Live bus uses raw Redis pub/sub for cross-service dashboard widgets.
       liveBus.setRedis(redis);

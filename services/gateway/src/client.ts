@@ -32,7 +32,7 @@ import { TicketHandlers } from './handlers/TicketHandler';
 import { AIModerationHandlers } from './handlers/AIModeration';
 import { WelcomeHandlers } from './handlers/WelcomeHandler';
 import { ServerProtection } from './handlers/ServerProtection';
-import { handleRulesButton } from './commands/rules';
+import { RulesHandlers } from './handlers/RulesHandler';
 
 const logger = createLogger('gateway-client');
 
@@ -311,8 +311,20 @@ export class GatewayClient extends Client {
 
     // Handle rules system buttons
     if (action === 'rules') {
-      await handleRulesButton(interaction);
-      return;
+      switch (subAction) {
+        case 'accept':
+          await RulesHandlers.handleAcceptButton(interaction);
+          return;
+        case 'accept-captcha':
+          await RulesHandlers.handleAcceptCaptchaButton(interaction);
+          return;
+        case 'ticket':
+          await RulesHandlers.handleAskStaffButton(interaction);
+          return;
+        default:
+          logger.debug(`Unhandled rules button sub-action: ${subAction}`);
+          return;
+      }
     }
 
     // Handle verification buttons
@@ -400,6 +412,12 @@ export class GatewayClient extends Client {
     const [action, subAction, ...params] = interaction.customId.split(':');
 
     logger.debug(`Modal submitted: ${action}:${subAction}`);
+
+    // Handle rules captcha modal
+    if (action === 'rules' && subAction === 'captcha-submit') {
+      await RulesHandlers.handleCaptchaSubmit(interaction);
+      return;
+    }
 
     // Handle ticket modals
     if (action === 'ticket') {
