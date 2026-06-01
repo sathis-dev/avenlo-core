@@ -9,3 +9,5 @@ export * from './AuditLog';
 export * from './Infraction';
 export * from './WelcomeConfig';
 export * from './JoinEvent';
+export * from './RulesConfig';
+export * from './RuleAcceptance';

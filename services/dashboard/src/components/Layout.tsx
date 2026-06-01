@@ -20,6 +20,7 @@ import {
   Zap,
   ScrollText,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
@@ -38,6 +39,7 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Logs', href: '/logs', icon: ScrollText },
   { name: 'Welcome', href: '/welcome', icon: Sparkles, badge: 'NEW' },
+  { name: 'Rules', href: '/rules', icon: ShieldAlert, badge: 'NEW' },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

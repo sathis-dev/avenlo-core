@@ -26,6 +26,16 @@ import {
   type RedisClient,
   type WelcomeConfigData,
   type WelcomeConfigUpdatedPayload,
+  RulesConfig,
+  DEFAULT_RULES_CONFIG,
+  DEFAULT_RULES,
+  RULE_SEVERITIES,
+  ACCEPTANCE_GATE_TYPES,
+  type RulesConfigData,
+  type RulesConfigUpdatedPayload,
+  type RuleEntry,
+  type RuleSeverity,
+  type AcceptanceGateType,
 } from '@avenlo/shared';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -796,6 +806,254 @@ app.get('/api/welcome/analytics', requireAuth, async (req, res) => {
     console.error('Failed to compute welcome analytics:', err);
     return res.status(500).json({ error: 'Failed to compute analytics' });
   }
+});
+
+// ====================================
+// RULES CONFIG API
+// ====================================
+
+function toRulesConfigData(
+  guildId: string,
+  doc: { toObject?: () => Record<string, unknown> } | null,
+): RulesConfigData {
+  if (!doc) {
+    return { guildId, ...DEFAULT_RULES_CONFIG };
+  }
+  const obj = (doc.toObject ? doc.toObject() : doc) as Record<string, unknown>;
+  const preset = String(obj.themePreset ?? DEFAULT_RULES_CONFIG.themePreset);
+  const themePreset: ThemePreset = (THEME_PRESETS as readonly string[]).includes(preset)
+    ? (preset as ThemePreset)
+    : DEFAULT_RULES_CONFIG.themePreset;
+  const gate = String(obj.acceptanceGate ?? DEFAULT_RULES_CONFIG.acceptanceGate);
+  const acceptanceGate: AcceptanceGateType = (ACCEPTANCE_GATE_TYPES as readonly string[]).includes(gate)
+    ? (gate as AcceptanceGateType)
+    : DEFAULT_RULES_CONFIG.acceptanceGate;
+
+  const rawRules = Array.isArray(obj.rules) ? (obj.rules as Record<string, unknown>[]) : DEFAULT_RULES;
+  const rules: RuleEntry[] = rawRules.map((r, i) => {
+    const sev = String(r.severity ?? 'warn') as RuleSeverity;
+    return {
+      id: typeof r.id === 'string' && r.id ? r.id : `rule-${i + 1}-${Date.now()}`,
+      number: typeof r.number === 'number' ? r.number : i + 1,
+      icon: typeof r.icon === 'string' && r.icon ? r.icon : '📜',
+      title: String(r.title ?? `Rule ${i + 1}`),
+      body: String(r.body ?? ''),
+      severity: (RULE_SEVERITIES as readonly string[]).includes(sev) ? sev : 'warn',
+      autoEnforced: Boolean(r.autoEnforced),
+    };
+  });
+
+  const lastPostedAt = obj.lastPostedAt instanceof Date
+    ? obj.lastPostedAt.toISOString()
+    : typeof obj.lastPostedAt === 'string'
+      ? obj.lastPostedAt
+      : undefined;
+
+  return {
+    guildId,
+    enabled: Boolean(obj.enabled ?? DEFAULT_RULES_CONFIG.enabled),
+    rulesChannelId: String(obj.rulesChannelId ?? DEFAULT_RULES_CONFIG.rulesChannelId),
+    channelName: String(obj.channelName ?? DEFAULT_RULES_CONFIG.channelName),
+    memberRoleId: String(obj.memberRoleId ?? DEFAULT_RULES_CONFIG.memberRoleId),
+    acceptanceGate,
+    captchaPrompt: String(obj.captchaPrompt ?? DEFAULT_RULES_CONFIG.captchaPrompt),
+    captchaAnswer: String(obj.captchaAnswer ?? DEFAULT_RULES_CONFIG.captchaAnswer),
+    headerTitle: String(obj.headerTitle ?? DEFAULT_RULES_CONFIG.headerTitle),
+    headerSubtitle: String(obj.headerSubtitle ?? DEFAULT_RULES_CONFIG.headerSubtitle),
+    footerText: String(obj.footerText ?? DEFAULT_RULES_CONFIG.footerText),
+    themePreset,
+    accentColor: String(obj.accentColor ?? DEFAULT_RULES_CONFIG.accentColor),
+    lastPostedAt,
+    lastPostedMessageId: typeof obj.lastPostedMessageId === 'string' ? obj.lastPostedMessageId : undefined,
+    pinAfterPost: Boolean(obj.pinAfterPost ?? DEFAULT_RULES_CONFIG.pinAfterPost),
+    rules,
+  };
+}
+
+app.get('/api/rules-config', requireAuth, async (req, res) => {
+  try {
+    const guildId = resolveGuildId(req);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    const doc = await RulesConfig.findOne({ guildId }).exec();
+    res.json({ config: toRulesConfigData(guildId, doc) });
+  } catch (err) {
+    console.error('Failed to fetch rules config:', err);
+    res.status(500).json({ error: 'Failed to fetch rules config' });
+  }
+});
+
+const RULES_BOOLEAN_FIELDS = ['enabled', 'pinAfterPost'] as const;
+const RULES_STRING_FIELDS = [
+  'rulesChannelId',
+  'channelName',
+  'memberRoleId',
+  'captchaPrompt',
+  'captchaAnswer',
+  'headerTitle',
+  'headerSubtitle',
+  'footerText',
+  'accentColor',
+] as const;
+
+app.put('/api/rules-config', requireAdmin, async (req, res) => {
+  try {
+    const guildId = resolveGuildId(req);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const update: Record<string, unknown> = {};
+
+    for (const field of RULES_BOOLEAN_FIELDS) {
+      if (field in body) update[field] = Boolean(body[field]);
+    }
+
+    for (const field of RULES_STRING_FIELDS) {
+      if (field in body) {
+        const value = body[field];
+        if (typeof value !== 'string') {
+          res.status(400).json({ error: `${field} must be a string` });
+          return;
+        }
+        if (field === 'accentColor' && !HEX_COLOR_RE.test(value)) {
+          res.status(400).json({ error: 'accentColor must be a 6-digit hex color' });
+          return;
+        }
+        update[field] = value;
+      }
+    }
+
+    if ('acceptanceGate' in body) {
+      const v = body.acceptanceGate;
+      if (typeof v !== 'string' || !(ACCEPTANCE_GATE_TYPES as readonly string[]).includes(v)) {
+        res.status(400).json({
+          error: `acceptanceGate must be one of ${ACCEPTANCE_GATE_TYPES.join(', ')}`,
+        });
+        return;
+      }
+      update.acceptanceGate = v;
+    }
+
+    if ('themePreset' in body) {
+      const v = body.themePreset;
+      if (typeof v !== 'string' || !(THEME_PRESETS as readonly string[]).includes(v)) {
+        res.status(400).json({ error: `themePreset must be one of ${THEME_PRESETS.join(', ')}` });
+        return;
+      }
+      update.themePreset = v;
+    }
+
+    if ('rules' in body) {
+      const incoming = body.rules;
+      if (!Array.isArray(incoming)) {
+        res.status(400).json({ error: 'rules must be an array' });
+        return;
+      }
+      const normalized: RuleEntry[] = [];
+      for (let i = 0; i < incoming.length; i++) {
+        const raw = incoming[i] as Record<string, unknown>;
+        if (!raw || typeof raw !== 'object') {
+          res.status(400).json({ error: `rules[${i}] must be an object` });
+          return;
+        }
+        const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+        if (!title) {
+          res.status(400).json({ error: `rules[${i}].title is required` });
+          return;
+        }
+        const severity = String(raw.severity ?? 'warn');
+        if (!(RULE_SEVERITIES as readonly string[]).includes(severity)) {
+          res.status(400).json({
+            error: `rules[${i}].severity must be one of ${RULE_SEVERITIES.join(', ')}`,
+          });
+          return;
+        }
+        normalized.push({
+          id: typeof raw.id === 'string' && raw.id ? raw.id : `rule-${i + 1}-${Date.now()}`,
+          number: i + 1,
+          icon: typeof raw.icon === 'string' && raw.icon ? raw.icon : '📜',
+          title,
+          body: typeof raw.body === 'string' ? raw.body : '',
+          severity: severity as RuleSeverity,
+          autoEnforced: Boolean(raw.autoEnforced),
+        });
+      }
+      update.rules = normalized;
+    }
+
+    const doc = await RulesConfig.findOneAndUpdate(
+      { guildId },
+      { $set: update, $setOnInsert: { guildId } },
+      { upsert: true, new: true, runValidators: true },
+    ).exec();
+
+    const config = toRulesConfigData(guildId, doc);
+
+    if (redisClient) {
+      const payload: RulesConfigUpdatedPayload = {
+        guildId,
+        updatedBy: 'dashboard',
+        committedAt: new Date().toISOString(),
+      };
+      redisClient
+        .publish(EventTypes.RULES_CONFIG_UPDATED, { source: 'dashboard', payload })
+        .catch((err: unknown) => console.error('Failed to publish rules config event:', err));
+    }
+
+    res.json({ config });
+  } catch (err) {
+    console.error('Failed to update rules config:', err);
+    res.status(500).json({ error: 'Failed to update rules config' });
+  }
+});
+
+app.post('/api/rules/publish', requireAdmin, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+
+  const body = (req.body ?? {}) as { forceRepost?: boolean };
+  const user = req.user as { username?: string } | undefined;
+
+  try {
+    const url = `${GATEWAY_INTERNAL_URL}/api/rules/publish`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        guildId,
+        publishedBy: user?.username ?? 'dashboard',
+        forceRepost: Boolean(body.forceRepost),
+      }),
+    });
+    clearTimeout(timer);
+    const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok) {
+      return res.status(r.status).json({ error: data.error ?? `Gateway returned ${r.status}` });
+    }
+    return res.json(data);
+  } catch (err) {
+    console.error('Rules publish proxy failed', err);
+    return res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/rules/analytics', requireAuth, async (req, res) => {
+  const guildId = resolveGuildId(req);
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  const result = await proxyGateway<unknown>(
+    `/api/rules/analytics?guildId=${encodeURIComponent(guildId)}`,
+  );
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error });
+  }
+  return res.json(result.data);
 });
 
 // ====================================

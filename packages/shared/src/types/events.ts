@@ -87,6 +87,13 @@ export const EventTypes = {
   WELCOME_CONFIG_UPDATED: 'welcome:config:updated',
 
   // ====================================
+  // RULES EVENTS
+  // ====================================
+  RULES_CONFIG_UPDATED: 'rules:config:updated',
+  RULES_ACCEPTED: 'rules:accepted',
+  RULES_PUBLISHED: 'rules:published',
+
+  // ====================================
   // SYSTEM EVENTS
   // ====================================
   SYSTEM_ERROR: 'system:error',
@@ -765,6 +772,11 @@ export interface EventPayloadMap {
   // Welcome
   [EventTypes.WELCOME_CONFIG_UPDATED]: WelcomeConfigUpdatedPayload;
 
+  // Rules
+  [EventTypes.RULES_CONFIG_UPDATED]: RulesConfigUpdatedPayload;
+  [EventTypes.RULES_ACCEPTED]: RulesAcceptedPayload;
+  [EventTypes.RULES_PUBLISHED]: RulesPublishedPayload;
+
   // System
   [EventTypes.SYSTEM_ERROR]: SystemErrorPayload;
   [EventTypes.SYSTEM_HEALTH]: SystemHealthPayload;
@@ -786,6 +798,44 @@ export interface WelcomeConfigUpdatedPayload {
   updatedBy: 'dashboard' | 'admin-command' | 'system';
   /** ISO timestamp of when the update was committed to Mongo */
   committedAt: string;
+}
+
+// ====================================
+// RULES EVENT PAYLOADS
+// ====================================
+
+/**
+ * Fired by the dashboard whenever an admin saves a new rules configuration.
+ * The gateway listens for this and refreshes its in-memory cache.
+ */
+export interface RulesConfigUpdatedPayload {
+  guildId: string;
+  updatedBy: 'dashboard' | 'admin-command' | 'system';
+  committedAt: string;
+}
+
+/**
+ * Fired when a user accepts the rules (via button, captcha, or command).
+ */
+export interface RulesAcceptedPayload {
+  guildId: string;
+  userId: string;
+  username: string;
+  method: 'button' | 'captcha' | 'command';
+  memberRoleGranted: boolean;
+  acceptedAt: string;
+}
+
+/**
+ * Fired when an admin publishes (or re-publishes) the rules to a channel.
+ */
+export interface RulesPublishedPayload {
+  guildId: string;
+  rulesChannelId: string;
+  messageId: string;
+  publishedBy: string;
+  rulesCount: number;
+  at: string;
 }
 
 // ====================================
