@@ -15,6 +15,15 @@ import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import {
+  EventTypes,
+  WelcomeConfig,
+  DEFAULT_WELCOME_CONFIG,
+  initRedis,
+  type RedisClient,
+  type WelcomeConfigData,
+  type WelcomeConfigUpdatedPayload,
+} from '@avenlo/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -459,6 +468,177 @@ app.get('/api/tickets', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Failed to fetch tickets:', error);
     res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// ====================================
+// REDIS (best-effort) for publishing config events
+// ====================================
+
+let redisClient: RedisClient | null = null;
+
+function tryInitRedis(): void {
+  if (redisClient || !process.env.REDIS_URL) return;
+  try {
+    redisClient = initRedis({
+      url: process.env.REDIS_URL,
+      keyPrefix: 'avenlo:',
+    });
+    redisClient.connect()
+      .then(() => console.log('✅ Dashboard Redis publisher connected'))
+      .catch((err: unknown) => {
+        console.log('⚠️ Dashboard Redis publisher connect failed:', err);
+        redisClient = null;
+      });
+  } catch (err) {
+    console.log('⚠️ Failed to initialize dashboard Redis publisher:', err);
+    redisClient = null;
+  }
+}
+
+tryInitRedis();
+
+// ====================================
+// WELCOME CONFIG API
+// ====================================
+
+function toWelcomeConfigData(
+  guildId: string,
+  doc: { toObject?: () => Record<string, unknown> } | null
+): WelcomeConfigData {
+  if (!doc) {
+    return { guildId, ...DEFAULT_WELCOME_CONFIG };
+  }
+  const obj = (doc.toObject ? doc.toObject() : doc) as Record<string, unknown>;
+  return {
+    guildId,
+    enabled: Boolean(obj.enabled ?? DEFAULT_WELCOME_CONFIG.enabled),
+    dmEnabled: Boolean(obj.dmEnabled ?? DEFAULT_WELCOME_CONFIG.dmEnabled),
+    mentionUser: Boolean(obj.mentionUser ?? DEFAULT_WELCOME_CONFIG.mentionUser),
+    cardEnabled: Boolean(obj.cardEnabled ?? DEFAULT_WELCOME_CONFIG.cardEnabled),
+    showMemberCount: Boolean(obj.showMemberCount ?? DEFAULT_WELCOME_CONFIG.showMemberCount),
+    showAccountAge: Boolean(obj.showAccountAge ?? DEFAULT_WELCOME_CONFIG.showAccountAge),
+    channelName: String(obj.channelName ?? DEFAULT_WELCOME_CONFIG.channelName),
+    titleTemplate: String(obj.titleTemplate ?? DEFAULT_WELCOME_CONFIG.titleTemplate),
+    bodyTemplate: String(obj.bodyTemplate ?? DEFAULT_WELCOME_CONFIG.bodyTemplate),
+    cardTagline: String(obj.cardTagline ?? DEFAULT_WELCOME_CONFIG.cardTagline),
+    neonBorderColor: String(obj.neonBorderColor ?? DEFAULT_WELCOME_CONFIG.neonBorderColor),
+    embedAccentColor: String(obj.embedAccentColor ?? DEFAULT_WELCOME_CONFIG.embedAccentColor),
+    autoRoleIds: Array.isArray(obj.autoRoleIds) ? (obj.autoRoleIds as string[]) : [],
+  };
+}
+
+function resolveGuildId(req: express.Request): string | null {
+  const fromQuery = typeof req.query.guildId === 'string' ? req.query.guildId : null;
+  return fromQuery || process.env.DISCORD_GUILD_ID || null;
+}
+
+app.get('/api/welcome-config', requireAuth, async (req, res) => {
+  try {
+    const guildId = resolveGuildId(req);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required (query or DISCORD_GUILD_ID env)' });
+      return;
+    }
+    const doc = await WelcomeConfig.findOne({ guildId }).exec();
+    res.json({ config: toWelcomeConfigData(guildId, doc) });
+  } catch (err) {
+    console.error('Failed to fetch welcome config:', err);
+    res.status(500).json({ error: 'Failed to fetch welcome config' });
+  }
+});
+
+const BOOLEAN_FIELDS = [
+  'enabled',
+  'dmEnabled',
+  'mentionUser',
+  'cardEnabled',
+  'showMemberCount',
+  'showAccountAge',
+] as const;
+
+const STRING_FIELDS = [
+  'channelName',
+  'titleTemplate',
+  'bodyTemplate',
+  'cardTagline',
+  'neonBorderColor',
+  'embedAccentColor',
+] as const;
+
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
+app.put('/api/welcome-config', requireAdmin, async (req, res) => {
+  try {
+    const guildId = resolveGuildId(req);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required (query or DISCORD_GUILD_ID env)' });
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const update: Record<string, unknown> = {};
+
+    for (const field of BOOLEAN_FIELDS) {
+      if (field in body) update[field] = Boolean(body[field]);
+    }
+
+    for (const field of STRING_FIELDS) {
+      if (field in body) {
+        const value = body[field];
+        if (typeof value !== 'string') {
+          res.status(400).json({ error: `${field} must be a string` });
+          return;
+        }
+        if (
+          (field === 'neonBorderColor' || field === 'embedAccentColor') &&
+          !HEX_COLOR_RE.test(value)
+        ) {
+          res.status(400).json({ error: `${field} must be a 6-digit hex color (e.g. #00FFAA)` });
+          return;
+        }
+        update[field] = value;
+      }
+    }
+
+    if ('autoRoleIds' in body) {
+      const ids = body.autoRoleIds;
+      if (!Array.isArray(ids) || !ids.every((id): id is string => typeof id === 'string')) {
+        res.status(400).json({ error: 'autoRoleIds must be an array of strings' });
+        return;
+      }
+      update.autoRoleIds = ids;
+    }
+
+    const doc = await WelcomeConfig.findOneAndUpdate(
+      { guildId },
+      { $set: update, $setOnInsert: { guildId } },
+      { upsert: true, new: true, runValidators: true }
+    ).exec();
+
+    const config = toWelcomeConfigData(guildId, doc);
+
+    // Best-effort publish to gateway via Redis pub/sub
+    if (redisClient) {
+      const payload: WelcomeConfigUpdatedPayload = {
+        guildId,
+        updatedBy: 'dashboard',
+        committedAt: new Date().toISOString(),
+      };
+      redisClient
+        .publish(EventTypes.WELCOME_CONFIG_UPDATED, {
+          source: 'dashboard',
+          payload,
+        })
+        .catch((err: unknown) => console.error('Failed to publish welcome config event:', err));
+    } else {
+      console.warn('⚠️ Redis publisher not available — gateway will pick up on next cache miss');
+    }
+
+    res.json({ config });
+  } catch (err) {
+    console.error('Failed to update welcome config:', err);
+    res.status(500).json({ error: 'Failed to update welcome config' });
   }
 });
 

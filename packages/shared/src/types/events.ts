@@ -82,6 +82,11 @@ export const EventTypes = {
   KINETIC_THREAT_DETECTED: 'kinetic:threat:detected',
 
   // ====================================
+  // WELCOME EVENTS
+  // ====================================
+  WELCOME_CONFIG_UPDATED: 'welcome:config:updated',
+
+  // ====================================
   // SYSTEM EVENTS
   // ====================================
   SYSTEM_ERROR: 'system:error',
@@ -757,10 +762,30 @@ export interface EventPayloadMap {
   // Kinetic
   [EventTypes.KINETIC_THREAT_DETECTED]: KineticThreatDetectedPayload;
 
+  // Welcome
+  [EventTypes.WELCOME_CONFIG_UPDATED]: WelcomeConfigUpdatedPayload;
+
   // System
   [EventTypes.SYSTEM_ERROR]: SystemErrorPayload;
   [EventTypes.SYSTEM_HEALTH]: SystemHealthPayload;
   [EventTypes.SYSTEM_METRICS]: SystemMetricsPayload;
+}
+
+// ====================================
+// WELCOME EVENT PAYLOADS
+// ====================================
+
+/**
+ * Fired by the dashboard whenever an admin saves a new welcome configuration.
+ * The gateway listens for this and refreshes its in-memory cache without a reboot.
+ */
+export interface WelcomeConfigUpdatedPayload {
+  /** Guild whose welcome config was updated */
+  guildId: string;
+  /** Source of the update (always 'dashboard' for now) */
+  updatedBy: 'dashboard' | 'admin-command' | 'system';
+  /** ISO timestamp of when the update was committed to Mongo */
+  committedAt: string;
 }
 
 // ====================================

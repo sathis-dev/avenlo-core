@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@avenlo/shared": "workspace:*",
+    "@napi-rs/canvas": "^1.0.0",
     "@types/uuid": "^11.0.0",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",

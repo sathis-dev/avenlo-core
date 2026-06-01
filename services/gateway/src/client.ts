@@ -208,33 +208,12 @@ export class GatewayClient extends Client {
 
     if (raidAction) {
       // RaidDetector handles the lockdown logic internally via events
-      // We just need to log locally if needed, but the detector publishes events
       return;
     }
 
-    // Get welcome channel (look for channels named "welcome", "general", or use system channel)
-    const welcomeChannel = guild.channels.cache.find(
-      ch => ch.name.includes('welcome') && ch.isTextBased()
-    ) || guild.channels.cache.find(
-      ch => ch.name.includes('general') && ch.isTextBased()
-    ) || guild.systemChannel;
-
-    if (welcomeChannel && welcomeChannel.isTextBased()) {
-      // Build and send welcome message
-      const embed = WelcomeHandlers.buildWelcomeEmbed(member);
-      const row = WelcomeHandlers.buildWelcomeButtons();
-      await (welcomeChannel as TextChannel).send({
-        content: `${member}`,
-        embeds: [embed],
-        components: [row],
-      });
-    }
-
-    // Send DM welcome
-    await WelcomeHandlers.sendWelcomeDM(member);
-
-    // Assign auto-roles
-    await WelcomeHandlers.assignAutoRoles(member);
+    // Delegate to the welcome system — it loads the per-guild config
+    // (Redis hot-reloaded) and handles channel send + DM + auto-roles.
+    await WelcomeHandlers.handleMemberJoin(member);
 
     logger.info(`👋 Welcomed ${member.user.tag} to ${guild.name}`);
   }
@@ -245,19 +224,13 @@ export class GatewayClient extends Client {
   private async handleMemberLeave(member: GuildMember | PartialGuildMember): Promise<void> {
     const guild = member.guild;
 
-    // Get goodbye channel
-    const goodbyeChannel = guild.channels.cache.find(
-      ch => ch.name.includes('welcome') && ch.isTextBased()
-    ) || guild.channels.cache.find(
-      ch => ch.name.includes('general') && ch.isTextBased()
-    ) || guild.systemChannel;
-
-    if (goodbyeChannel && goodbyeChannel.isTextBased()) {
-      const embed = await WelcomeHandlers.buildGoodbyeEmbed(member);
-      await (goodbyeChannel as TextChannel).send({ embeds: [embed] });
+    if (member.partial) {
+      logger.debug(`Skipping leave embed for partial member ${member.id}`);
+      return;
     }
 
-    logger.info(`👋 ${member.user?.tag || 'Unknown'} left ${guild.name}`);
+    await WelcomeHandlers.handleMemberLeave(member);
+    logger.info(`👋 ${member.user.tag} left ${guild.name}`);
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {

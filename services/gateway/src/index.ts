@@ -11,6 +11,7 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { GatewayClient } from './client';
 import { initRedis, initMongo, initEncryption, createLogger, RedisClient } from '@avenlo/shared';
 import { startHealthServer } from './health';
+import { welcomeConfigStore } from './handlers/WelcomeConfigStore';
 
 const logger = createLogger('gateway');
 
@@ -83,6 +84,16 @@ async function bootstrap(): Promise<void> {
       key: process.env.ENCRYPTION_KEY!,
     });
     logger.info('✅ Encryption initialized');
+
+    // Subscribe the welcome config store to Redis so dashboard edits
+    // are picked up live without restarting the gateway.
+    if (redis) {
+      try {
+        await welcomeConfigStore.startSubscription(redis);
+      } catch (err) {
+        logger.warn('⚠️ Failed to subscribe welcome config store to Redis', err);
+      }
+    }
 
     // Start Discord Client
     const client = new GatewayClient();
