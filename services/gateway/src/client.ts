@@ -102,10 +102,6 @@ export class GatewayClient extends Client {
       // Start Kinetic Engine punishment listener
       MessageWatcher.initPunishmentListener(this);
 
-      // Initialize Music System
-      const { MusicHandler } = await import('./handlers/MusicHandler');
-      await MusicHandler.init(readyClient as Client);
-
       // Start Proof-of-Value Tier Upgrade listener
       LedgerHandler.initTierUpgradeListener(this);
 
@@ -522,13 +518,6 @@ export class GatewayClient extends Client {
     // Handle Guardian Moderation buttons
     if (action === 'mod') {
       await this.handleModerationButton(interaction, subAction, params);
-      return;
-    }
-
-    // Handle Music buttons
-    if (action.startsWith('music_')) {
-      const { MusicHandler } = await import('./handlers/MusicHandler');
-      await MusicHandler.handleButton(interaction);
       return;
     }
 
