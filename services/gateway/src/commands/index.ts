@@ -20,7 +20,6 @@ import { verifyCommand } from './verify';
 import { sovereignCommand } from './sovereign';
 import { strategicCommand } from './strategic';
 import { tacticalCommand } from './tactical';
-import { musicCommand } from './music';
 
 const logger = createLogger('gateway-commands');
 
@@ -45,7 +44,6 @@ const commands: Command[] = [
   sovereignCommand,
   strategicCommand,
   tacticalCommand,
-  musicCommand,
 ];
 
 export async function loadCommands(): Promise<Collection<string, Command>> {
