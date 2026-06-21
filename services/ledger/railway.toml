@@ -21,7 +21,8 @@ numReplicas = 1
 #   MONGODB_URI            - MongoDB connection string
 #   REDIS_URL              - Redis connection string
 #   DISCORD_TOKEN          - Bot token for role management
-#   DISCORD_GUILD_ID       - Target server ID
+#   DISCORD_GUILD_ID       - Target server ID (single guild fallback)
+#   DISCORD_GUILD_IDS      - Comma-separated guild IDs (multi-server)
 #
 # Role Configuration:
 #   ROLE_STUDIO_LEAD       - Role ID for Studio Lead (500+ credits)

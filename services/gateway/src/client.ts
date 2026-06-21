@@ -1117,6 +1117,17 @@ export class GatewayClient extends Client {
     await this.login(process.env.DISCORD_TOKEN);
   }
 
+  private getGuildIds(): string[] {
+    const csv = process.env.DISCORD_GUILD_IDS;
+    if (csv) {
+      return csv.split(',').map((id) => id.trim()).filter(Boolean);
+    }
+    if (process.env.DISCORD_GUILD_ID) {
+      return [process.env.DISCORD_GUILD_ID];
+    }
+    return [];
+  }
+
   private async registerCommands(): Promise<void> {
     // Skip registration if SKIP_COMMAND_REGISTER is set (for dev restarts)
     if (process.env.SKIP_COMMAND_REGISTER === 'true') {
@@ -1125,28 +1136,31 @@ export class GatewayClient extends Client {
     }
 
     const commands = Array.from(this.commands.values()).map((cmd) => cmd.data.toJSON());
+    const guildIds = this.getGuildIds();
 
     try {
       logger.info(`Registering ${commands.length} slash commands...`);
 
-      if (process.env.DISCORD_GUILD_ID) {
+      if (guildIds.length > 0) {
         // Guild-specific commands (instant update)
-        await this.restClient.put(
-          Routes.applicationGuildCommands(
-            process.env.DISCORD_CLIENT_ID!,
-            process.env.DISCORD_GUILD_ID
-          ),
-          { body: commands }
-        );
+        for (const guildId of guildIds) {
+          await this.restClient.put(
+            Routes.applicationGuildCommands(
+              process.env.DISCORD_CLIENT_ID!,
+              guildId
+            ),
+            { body: commands }
+          );
+          logger.info(`✅ Slash commands registered for guild ${guildId}`);
+        }
       } else {
         // Global commands (may take up to an hour)
         await this.restClient.put(
           Routes.applicationCommands(process.env.DISCORD_CLIENT_ID!),
           { body: commands }
         );
+        logger.info('✅ Slash commands registered globally');
       }
-
-      logger.info('✅ Slash commands registered');
     } catch (error) {
       logger.error('Failed to register commands:', error);
       throw error;
