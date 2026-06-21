@@ -8,6 +8,7 @@ import {
   getRedisClient,
   getEventBus,
   EventTypes,
+  KineticVisionaryScanPayload,
   InterviewSession,
   IInterviewMessage,
   Project,
@@ -54,6 +55,16 @@ export class ArchitectService {
       await this.handleInterviewMessage(event.payload as any);
     });
 
+    // Subscribe to Kinetic Visionary scan events from Gateway.
+    // The listener is itself guarded so a rejected scan never crashes the bus.
+    await redis.subscribe(EventTypes.KINETIC_VISIONARY_SCAN, async (event) => {
+      try {
+        await this.handleKineticVisionaryScan(event.payload as KineticVisionaryScanPayload);
+      } catch (err) {
+        logger.warn('Kinetic Visionary listener error (suppressed):', err);
+      }
+    });
+
     logger.info('Architect service subscriptions established');
   }
 
@@ -61,6 +72,7 @@ export class ArchitectService {
     const redis = getRedisClient();
     await redis.unsubscribe(EventTypes.ARCHITECT_INTERVIEW_START);
     await redis.unsubscribe(EventTypes.ARCHITECT_INTERVIEW_MESSAGE);
+    await redis.unsubscribe(EventTypes.KINETIC_VISIONARY_SCAN);
   }
 
   private async handleInterviewStart(payload: {
@@ -639,5 +651,125 @@ ANALYSIS:
 - Always try to understand the business goal behind the technical request
 
 When you have gathered sufficient information, summarize the project and ask if they'd like to proceed with a formal proposal.`;
+  }
+
+  // ====================================
+  // KINETIC VISIONARY SCAN HANDLER
+  // ====================================
+
+  private async handleKineticVisionaryScan(
+    payload: KineticVisionaryScanPayload
+  ): Promise<void> {
+    // ====================================
+    // ASYNC GUARDRAIL — Isolated try/catch.
+    // Any failure (Anthropic timeout, rate limit, malformed JSON, Redis hiccup)
+    // fails silently to a local warning log. It must NEVER throw back into the
+    // event-bus dispatcher or block the gateway message pipeline.
+    // ====================================
+    try {
+      logger.info(`Kinetic Visionary Scan triggered for ${payload.username}`);
+
+      if (!payload.messages || payload.messages.length === 0) {
+        logger.warn(`Kinetic scan received empty message bundle for ${payload.username}`);
+        return;
+      }
+
+      // Serialize the 7-message window into a strict JSON block for the model.
+      const messageBlock = JSON.stringify(
+        payload.messages.map((m, i) => ({
+          index: i + 1,
+          timestamp: new Date(m.timestamp).toISOString(),
+          channelId: m.channelId,
+          content: m.content,
+        })),
+        null,
+        2
+      );
+
+      // ====================================
+      // FORENSIC SYSTEM PROMPT
+      // ====================================
+      const systemPrompt = `You are the "Kinetic Engine", an elite L3 Forensic Visionary for Discord server defense.
+
+You will receive a JSON array of up to 7 sequential messages from a SINGLE user. Your ONLY job is to determine whether this user is engaged in genuinely malicious behavior.
+
+EVALUATE STRICTLY AND ONLY FOR:
+1. Deep psychological manipulation (grooming, coercion, gaslighting, social engineering to extract data or money).
+2. Coordinated raid scheduling (organizing or timing a mass attack, "everyone join at X", recruiting raiders, coordinated spam/flood instructions).
+3. Malicious exploits (phishing, token grabbers, scam links, malware distribution, IP-logger bait, account-takeover attempts).
+
+YOU MUST IGNORE (these are NOT threats — never flag them):
+- Standard casual conversation, banter, venting, or jokes.
+- Gaming slang, trash talk, competitive taunts, or in-game terminology (e.g. "kill", "destroy", "raid the boss", "camp", "noob").
+- Typos, autocorrect errors, abbreviations, emojis, or copypasta memes.
+- Mild profanity or heated-but-harmless disagreement.
+- Repeated/short messages that are simply enthusiastic chatting.
+
+Be extremely conservative. When in doubt, treat it as harmless. The cost of a false positive is HIGH. Only assign a high score when evidence of real malicious intent is unambiguous across the message context.
+
+Respond with ONLY a single valid JSON object, no markdown, no commentary, in EXACTLY this schema:
+{
+  "threatScore": number,      // integer 0-100. 0 = clearly harmless, 100 = unambiguous active threat.
+  "reason": string,           // one concise sentence explaining the score.
+  "actionRequired": boolean   // true ONLY if threatScore indicates a real, actionable threat.
+}`;
+
+      // Use Anthropic (Claude) specifically for the Kinetic Engine.
+      const kineticAI = new AIClient('anthropic');
+
+      const rawResponse = await kineticAI.analyze(messageBlock, systemPrompt);
+
+      // Strip any markdown fences the model may add.
+      const cleaned = rawResponse
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const result = JSON.parse(cleaned) as {
+        threatScore: number;
+        reason: string;
+        actionRequired: boolean;
+      };
+
+      const score = Number(result.threatScore) || 0;
+
+      // Gate: only escalate when the model demands action AND the score is decisive.
+      if (!result.actionRequired || score < 70) {
+        logger.info(
+          `Kinetic scan cleared ${payload.username} | score: ${score} | ${result.reason}`
+        );
+        return;
+      }
+
+      // Map the forensic verdict onto the threat-detection contract.
+      const severity: 'high' | 'critical' = score >= 90 ? 'critical' : 'high';
+      const confidence = Math.min(1, Math.max(0, score / 100));
+
+      const eventBus = getEventBus();
+      await eventBus.publish(EventTypes.KINETIC_THREAT_DETECTED, {
+        guildId: payload.guildId,
+        channelId:
+          payload.messages[payload.messages.length - 1]?.channelId || '',
+        userId: payload.userId,
+        username: payload.username,
+        vector: 'raid',
+        severity,
+        confidence,
+        reputationDelta: -25,
+        recommendedAction: 'mute',
+        signals: [result.reason],
+        detectedAt: new Date().toISOString(),
+      });
+
+      logger.warn(
+        `Kinetic threat: ${payload.username} | score: ${score} | ${result.reason}`
+      );
+    } catch (err) {
+      // Fail silent — never block the gateway pipeline on AI failure.
+      logger.warn(
+        `Kinetic Visionary scan failed for ${payload?.username ?? 'unknown'} (failing silently):`,
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 }

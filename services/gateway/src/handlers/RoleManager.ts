@@ -176,6 +176,10 @@ export async function getAIRoleSuggestions(
   }
   
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return ['❌ ERROR: OPENAI_API_KEY is not configured in your .env file.'];
+    }
+
     const ai = getOpenAI();
     
     const roles = guild.roles.cache
@@ -214,11 +218,13 @@ Provide role structure suggestions.`,
       max_tokens: 500,
     });
     
-    const content = response.choices[0]?.message?.content || '[]';
+    let content = response.choices[0]?.message?.content || '[]';
+    content = content.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(content);
   } catch (error) {
     logger.error('AI role suggestions failed:', error);
-    return [];
+    const msg = error instanceof Error ? error.message : String(error);
+    return [`❌ AI Error: ${msg}`];
   }
 }
 
@@ -465,6 +471,38 @@ export function buildRoleAuditEmbed(guild: Guild): EmbedBuilder {
 }
 
 // ====================================
+// INTERACTION HANDLERS
+// ====================================
+
+import { ButtonInteraction } from 'discord.js';
+
+export async function handleRoleManageAudit(interaction: ButtonInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+  const embed = buildRoleAuditEmbed(interaction.guild!);
+  await interaction.editReply({ embeds: [embed] });
+}
+
+export async function handleRoleManageAI(interaction: ButtonInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+  
+  const suggestions = await getAIRoleSuggestions(interaction.guild!, 'Please review my current roles for security and structure.');
+  
+  if (suggestions.length === 0) {
+    await interaction.editReply('❌ Failed to generate AI suggestions or AI is disabled.');
+    return;
+  }
+  
+  const embed = new EmbedBuilder()
+    .setColor(AvenloColors.PURPLE)
+    .setTitle('🤖 AI Role Suggestions')
+    .setDescription(suggestions.map(s => `• ${s}`).join('\n\n'))
+    .setFooter({ text: AvenloBranding.footer })
+    .setTimestamp();
+    
+  await interaction.editReply({ embeds: [embed] });
+}
+
+// ====================================
 // EXPORTS
 // ====================================
 
@@ -487,6 +525,10 @@ export const RoleManager = {
   buildRoleListEmbed,
   buildRoleInfoEmbed,
   buildRoleAuditEmbed,
+  
+  // Handlers
+  handleRoleManageAudit,
+  handleRoleManageAI,
 };
 
 export default RoleManager;

@@ -1,23 +1,25 @@
 # ====================================
 # AVENLO CORE - DOCKER COMPOSE
-# Local Development Environment
+# Production Orchestration
 # ====================================
 
-version: '3.8'
+# Note: Docker Compose v2 auto-loads .env from the project root.
+# No explicit env_file mount needed — variables are injected naturally.
 
 services:
   # ====================================
-  # INFRASTRUCTURE
+  # INFRASTRUCTURE TIER
   # ====================================
-  
+
   redis:
     image: redis:7-alpine
     container_name: avenlo-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -27,8 +29,9 @@ services:
       - avenlo-network
 
   mongodb:
-    image: mongo:7
+    image: mongo:6
     container_name: avenlo-mongodb
+    restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
@@ -47,7 +50,7 @@ services:
       - avenlo-network
 
   # ====================================
-  # SERVICES
+  # GATEWAY TIER (Discord Bot)
   # ====================================
 
   gateway:
@@ -55,21 +58,25 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile
     container_name: avenlo-gateway
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - REDIS_URL=redis://redis:6379
-      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
-      - MONGODB_DB_NAME=avenlo_core
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      NODE_ENV: production
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      MONGODB_DB_NAME: avenlo_core
+      # Discord (loaded from .env or host env)
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      # Verification & Protection
+      CHANNEL_LOGS: ${CHANNEL_LOGS}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       # Guardian AI Moderation
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GUARDIAN_ENABLED=${GUARDIAN_ENABLED:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GUARDIAN_ENABLED: ${GUARDIAN_ENABLED:-true}
     depends_on:
       redis:
         condition: service_healthy
@@ -83,28 +90,34 @@ services:
     networks:
       - avenlo-network
 
+  # ====================================
+  # ARCHITECT TIER (AI Moderation Consumer)
+  # ====================================
+
   architect:
     build:
       context: .
       dockerfile: services/architect/Dockerfile
     container_name: avenlo-architect
+    restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - REDIS_URL=redis://redis:6379
-      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
-      - MONGODB_DB_NAME=avenlo_core
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AI_PROVIDER=${AI_PROVIDER:-openai}
-      - AI_MODEL=${AI_MODEL:-gpt-4o}
+      NODE_ENV: production
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      MONGODB_DB_NAME: avenlo_core
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # AI Provider (Claude for Kinetic Engine)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-claude-3-5-sonnet-20241022}
       # Multi-Agent Orchestration
-      - ARCHITECT_MULTI_AGENT=${ARCHITECT_MULTI_AGENT:-true}
-      - MAX_DEBATE_ROUNDS=${MAX_DEBATE_ROUNDS:-3}
-      - AUTO_APPROVE_THRESHOLD=${AUTO_APPROVE_THRESHOLD:-7}
+      ARCHITECT_MULTI_AGENT: ${ARCHITECT_MULTI_AGENT:-true}
+      MAX_DEBATE_ROUNDS: ${MAX_DEBATE_ROUNDS:-3}
+      AUTO_APPROVE_THRESHOLD: ${AUTO_APPROVE_THRESHOLD:-7}
     depends_on:
       redis:
         condition: service_healthy
@@ -118,22 +131,67 @@ services:
     networks:
       - avenlo-network
 
+  # ====================================
+  # LEDGER TIER (Proof-of-Value)
+  # ====================================
+
+  ledger:
+    build:
+      context: .
+      dockerfile: services/ledger/Dockerfile
+    container_name: avenlo-ledger
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      MONGODB_DB_NAME: avenlo_core
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      # GitHub Webhook
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+      # Tier Roles
+      ROLE_STUDIO_LEAD: ${ROLE_STUDIO_LEAD}
+      ROLE_ACTIVE_DEV: ${ROLE_ACTIVE_DEV}
+      ROLE_CONTRIBUTOR: ${ROLE_CONTRIBUTOR}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - avenlo-network
+
+  # ====================================
+  # PULSE TIER (DevOps / Git Integration)
+  # ====================================
+
   pulse:
     build:
       context: .
       dockerfile: services/pulse/Dockerfile
     container_name: avenlo-pulse
+    restart: unless-stopped
     ports:
       - "3002:3002"
     environment:
-      - NODE_ENV=production
-      - PORT=3002
-      - REDIS_URL=redis://redis:6379
-      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
-      - MONGODB_DB_NAME=avenlo_core
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      NODE_ENV: production
+      PORT: 3002
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
+      MONGODB_DB_NAME: avenlo_core
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
     depends_on:
       redis:
         condition: service_healthy
@@ -147,40 +205,35 @@ services:
     networks:
       - avenlo-network
 
-  ledger:
-    build:
-      context: .
-      dockerfile: services/ledger/Dockerfile
-    container_name: avenlo-ledger
-    ports:
-      - "3003:3003"
-    environment:
-      - NODE_ENV=production
-      - PORT=3003
-      - REDIS_URL=redis://redis:6379
-      - MONGODB_URI=mongodb://admin:avenlo_dev_password@mongodb:27017/avenlo_core?authSource=admin
-      - MONGODB_DB_NAME=avenlo_core
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - ROLE_STUDIO_LEAD=${ROLE_STUDIO_LEAD}
-      - ROLE_ACTIVE_DEV=${ROLE_ACTIVE_DEV}
-      - ROLE_CONTRIBUTOR=${ROLE_CONTRIBUTOR}
-    depends_on:
-      redis:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - avenlo-network
+  # ====================================
+  # DASHBOARD TIER (Admin UI)
+  # Commented out: npm cert issue in Dockerfile.dashboard blocks full build.
+  # Re-enable once pnpm is bundled or cert chain is resolved.
+  # ====================================
+  # dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dashboard
+  #   container_name: avenlo-dashboard
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   environment:
+  #     NODE_ENV: production
+  #     VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     mongodb:
+  #       condition: service_healthy
+  #   networks:
+  #     - avenlo-network
 
 volumes:
   redis-data:
+    driver: local
   mongodb-data:
+    driver: local
 
 networks:
   avenlo-network:

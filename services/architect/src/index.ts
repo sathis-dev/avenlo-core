@@ -2,7 +2,12 @@
 // AVENLO CORE - ARCHITECT SERVICE ENTRY
 // ====================================
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from project root
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { initRedis, initMongo, initEncryption, createLogger, EventTypes } from '@avenlo/shared';
 import { ArchitectService } from './service';
 import { startWebhookServer } from './server';

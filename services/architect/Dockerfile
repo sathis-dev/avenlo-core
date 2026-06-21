@@ -1,58 +1,37 @@
 # ====================================
 # AVENLO CORE - ARCHITECT DOCKERFILE
-# Multi-stage build with Distroless
+# Lightweight Pre-Built Runner
 # ====================================
 
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-slim
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+# Install wget for docker-compose healthchecks and pnpm
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+# Install pnpm (strict-ssl disabled for local Docker cert chain issue)
+RUN npm install -g pnpm --strict-ssl=false
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Copy workspace manifest (for pnpm workspace resolution)
+COPY package.json pnpm-workspace.yaml* ./
+RUN npm pkg delete packageManager
+
+# Copy built shared package
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/shared/dist ./packages/shared/dist
+
+# Copy built architect service
 COPY services/architect/package.json ./services/architect/
+COPY services/architect/dist ./services/architect/dist
 
-RUN pnpm install
-
-COPY packages/shared ./packages/shared
-COPY services/architect ./services/architect
-COPY tsconfig.base.json ./
-
-RUN pnpm --filter @avenlo/shared build
-RUN pnpm --filter @avenlo/architect build
-
-# Production dependencies stage
-FROM node:20-alpine AS deps
-
-WORKDIR /app
-
-RUN npm install -g pnpm
-
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
-COPY packages/shared/package.json ./packages/shared/
-COPY services/architect/package.json ./services/architect/
-
-RUN pnpm install --prod
-
-# Runtime stage
-FROM gcr.io/distroless/nodejs20-debian12
-
-WORKDIR /app
-
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/services/architect/dist ./services/architect/dist
-COPY --from=builder /app/services/architect/package.json ./services/architect/
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/services/architect/node_modules ./services/architect/node_modules
+# Install production dependencies only
+RUN pnpm install --prod --config.strict-ssl=false
 
 ENV NODE_ENV=production
 ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["services/architect/dist/index.js"]
+CMD ["node", "services/architect/dist/index.js"]

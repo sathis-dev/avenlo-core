@@ -89,14 +89,22 @@ export const rulesCommand = {
         });
         return;
       }
-      const { memberRoleGranted } = await manuallyAcceptRules(guild, member);
+      const { memberRoleGranted, verificationRequired } = await manuallyAcceptRules(guild, member);
+      if (verificationRequired) {
+        await interaction.reply({
+          content:
+            '⚠️ **Please complete verification first.**\n' +
+            'Go to <#1511101077184053388> and click **Begin Verification** before accepting the rules.',
+          ephemeral: true,
+        });
+        return;
+      }
       await interaction.reply({
         content: memberRoleGranted
-          ? '✅ Acceptance recorded — you now have the **Member** role.'
+          ? '✅ Acceptance recorded — you now have the **Member** and **Verified** roles.'
           : '✅ Acceptance recorded.',
         ephemeral: true,
       });
-      return;
     }
 
     await interaction.reply({

@@ -8,7 +8,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm --strict-ssl=false
+ENV npm_config_strict_ssl=false
 
 # Copy package.json and remove workspace dependency
 COPY package.json ./
@@ -37,7 +38,8 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm --strict-ssl=false
+ENV npm_config_strict_ssl=false
 
 # Copy package.json
 COPY --from=builder /app/package.json ./

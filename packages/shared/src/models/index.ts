@@ -11,3 +11,8 @@ export * from './WelcomeConfig';
 export * from './JoinEvent';
 export * from './RulesConfig';
 export * from './RuleAcceptance';
+export * from './VerificationLog';
+export * from './Bounty';
+export * from './IPO';
+export * from './RoleProfile';
+export * from './Achievement';

@@ -20,6 +20,7 @@ import {
   PulsePRPayload,
   User,
   Transaction,
+  Bounty,
 } from '@avenlo/shared';
 
 const logger = createLogger('ledger-consumer');
@@ -426,6 +427,59 @@ export class LedgerConsumer {
           },
           { session }
         );
+
+        // [OMEGA FEATURE] Bounty Smart Contract Fulfillment
+        let bountyCredits = 0;
+        let finalBalanceAfter = balanceAfter;
+        const linkedBounty = await Bounty.findOne({ linkedPrNumber: payload.prNumber, status: 'claimed' }).session(session);
+        if (linkedBounty) {
+            bountyCredits = linkedBounty.rewardCredits;
+            logger.info(`💰 Bounty Smart Contract fulfilled! PR #${payload.prNumber} closed Bounty ${linkedBounty.bountyId} for ${bountyCredits} credits.`);
+            
+            // Mark bounty as completed
+            linkedBounty.status = 'completed';
+            linkedBounty.completedAt = new Date();
+            await linkedBounty.save({ session });
+
+            // Payout bounty
+            finalBalanceAfter += bountyCredits;
+            
+            await User.updateOne(
+              { _id: user._id },
+              { $inc: { credits: bountyCredits, totalEarned: bountyCredits } },
+              { session }
+            );
+
+            await Transaction.create(
+              [{
+                  transactionId: `bounty-${ctx.event.meta.eventId}`,
+                  userId: user._id,
+                  discordId: user.discordId,
+                  type: 'credit',
+                  amount: bountyCredits,
+                  balanceBefore: finalBalanceAfter - bountyCredits,
+                  balanceAfter: finalBalanceAfter,
+                  reason: 'admin_grant',
+                  description: `Bounty Smart Contract Payout: ${linkedBounty.title}`,
+                  referenceType: 'project',
+                  referenceId: linkedBounty.bountyId,
+              }],
+              { session }
+            );
+
+            // Also emit bounty payout event
+            await this.emitCreditsEarned({
+              userId: user._id.toString(),
+              discordId: user.discordId,
+              username: user.username,
+              amount: bountyCredits,
+              reason: 'admin_grant',
+              balanceBefore: finalBalanceAfter - bountyCredits,
+              balanceAfter: finalBalanceAfter,
+              referenceType: 'project',
+              referenceId: linkedBounty.bountyId,
+            });
+        }
 
         await Transaction.create(
           [

@@ -6,7 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { 
   createLogger, 
   getRedisClient, 
+  getEventBus,
   EventTypes,
+  TierUpgradePayload,
   User,
   Transaction,
   TransactionReason,
@@ -125,6 +127,9 @@ export class LedgerService {
       // Check for leaderboard updates
       await this.checkLeaderboardPosition(user);
 
+      // Check for tier upgrade thresholds
+      await this.checkTierUpgrade(user);
+
     } catch (error) {
       logger.error('Failed to process credit earn:', error);
     }
@@ -229,6 +234,52 @@ export class LedgerService {
     }
   }
 
+  // ====================================
+  // TIER UPGRADE ENGINE
+  // ====================================
+
+  private async checkTierUpgrade(user: any): Promise<void> {
+    const credits = user.credits;
+
+    const TIERS: Array<{
+      threshold: number;
+      roleName: TierUpgradePayload['roleName'];
+    }> = [
+      { threshold: 5000, roleName: 'Sovereign' },
+      { threshold: 1500, roleName: 'Strategic' },
+      { threshold: 500, roleName: 'Tactical' },
+    ];
+
+    // Find the highest tier the user qualifies for
+    const qualified = TIERS.find((t) => credits >= t.threshold);
+    if (!qualified) return;
+
+    // If the user already has this role in their record, skip
+    if (user.roles?.includes(qualified.roleName)) return;
+
+    // Update user's role list atomically
+    await User.updateOne(
+      { _id: user._id },
+      { $addToSet: { roles: qualified.roleName } }
+    );
+
+    // Publish TIER_UPGRADE event to the Gateway
+    const eventBus = getEventBus();
+    await eventBus.publish(EventTypes.TIER_UPGRADE, {
+      userId: user._id.toString(),
+      discordId: user.discordId,
+      username: user.username,
+      roleName: qualified.roleName,
+      creditsTotal: credits,
+      threshold: qualified.threshold,
+      upgradedAt: new Date().toISOString(),
+    });
+
+    logger.info(
+      `Tier upgrade published: ${user.username} -> ${qualified.roleName} (${credits} credits)`
+    );
+  }
+
   private getTransactionDescription(reason: TransactionReason, amount: number): string {
     const descriptions: Record<TransactionReason, string> = {
       commit: `Code commit (+${amount} credits)`,
@@ -244,6 +295,7 @@ export class LedgerService {
       transfer_out: `Credits transferred`,
       transfer_in: `Credits received`,
       penalty: `Penalty applied`,
+      helpful_reaction: `Helpful reaction received (+${amount} credits)`,
     };
 
     return descriptions[reason] || `Transaction (+${amount} credits)`;

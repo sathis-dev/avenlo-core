@@ -36,6 +36,7 @@ import {
 import { resolveTextChannel } from './ChannelResolver';
 import { liveBus } from './LiveBus';
 import { rulesConfigStore } from './RulesConfigStore';
+import { hasCompletedVerification, grantVerifiedAndMember } from './VerificationHandler';
 
 const logger = createLogger('rules-system');
 
@@ -450,6 +451,21 @@ export async function handleAcceptButton(
     return;
   }
 
+  // Block rules acceptance until verification is completed
+  const isVerified = await hasCompletedVerification(guild.id, member.id);
+  if (!isVerified) {
+    await interaction.reply({
+      content:
+        '⚠️ **Please complete verification first.**\n' +
+        'Go to <#1511101077184053388> and click **Begin Verification** to unlock the server.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Grant Verified + Member roles now that both verification and rules are complete
+  await grantVerifiedAndMember(member);
+
   const { memberRoleGranted } = await recordAcceptance(
     guild,
     member,
@@ -462,7 +478,7 @@ export async function handleAcceptButton(
     `✅ **Thanks for accepting the rules, ${interaction.user}!**`,
     '',
     memberRoleGranted
-      ? `You now have the **Member** role — full server access unlocked.`
+      ? `You now have the **Member** and **Verified** roles — full server access unlocked.`
       : `Acceptance recorded. (No member role configured — ask an admin to set one in the dashboard.)`,
   ];
 
@@ -549,6 +565,21 @@ export async function handleCaptchaSubmit(
     return;
   }
 
+  // Block rules acceptance until verification is completed
+  const isVerified = await hasCompletedVerification(guild.id, member.id);
+  if (!isVerified) {
+    await interaction.reply({
+      content:
+        '⚠️ **Please complete verification first.**\n' +
+        'Go to <#1511101077184053388> and click **Begin Verification** to unlock the server.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Grant Verified + Member roles now that both verification and rules are complete
+  await grantVerifiedAndMember(member);
+
   const { memberRoleGranted } = await recordAcceptance(
     guild,
     member,
@@ -559,7 +590,7 @@ export async function handleCaptchaSubmit(
 
   await interaction.reply({
     content: memberRoleGranted
-      ? `✅ Verified! You now have the **Member** role.`
+      ? `✅ Verified! You now have the **Member** and **Verified** roles.`
       : `✅ Acceptance recorded.`,
     ephemeral: true,
   });
@@ -611,12 +642,16 @@ export const RulesHandlers = {
 };
 
 // Used for testing-only paths (e.g. /rules accept command)
-export async function manuallyAcceptRules(
-  guild: Guild,
-  member: GuildMember,
-): Promise<{ memberRoleGranted: boolean }> {
+export async function manuallyAcceptRules(guild: Guild, member: GuildMember): Promise<{ memberRoleGranted: boolean; verificationRequired: boolean }> {
+  const isVerified = await hasCompletedVerification(guild.id, member.id);
+  if (!isVerified) {
+    return { memberRoleGranted: false, verificationRequired: true };
+  }
+
   const config = await rulesConfigStore.get(guild.id);
-  return recordAcceptance(guild, member, config, 'command');
+  await grantVerifiedAndMember(member);
+  const result = await recordAcceptance(guild, member, config, 'command');
+  return { ...result, verificationRequired: false };
 }
 
 // Re-export the channel type for callers that need to narrow.

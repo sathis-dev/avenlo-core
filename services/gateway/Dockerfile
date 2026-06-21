@@ -1,67 +1,37 @@
 # ====================================
 # AVENLO CORE - GATEWAY DOCKERFILE
-# Multi-stage build with Distroless
+# Lightweight Pre-Built Runner
 # ====================================
 
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-slim
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install wget for docker-compose healthchecks, pnpm, fontconfig/fonts for canvas, and ffmpeg for audio streaming
+RUN apt-get update && apt-get install -y wget fontconfig fonts-liberation ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace files
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+# Install pnpm (strict-ssl disabled for local Docker cert chain issue)
+RUN npm install -g pnpm --strict-ssl=false
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Copy workspace manifest (for pnpm workspace resolution)
+COPY package.json pnpm-workspace.yaml* ./
+RUN npm pkg delete packageManager
+
+# Copy built shared package
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/shared/dist ./packages/shared/dist
+
+# Copy built gateway service
 COPY services/gateway/package.json ./services/gateway/
+COPY services/gateway/dist ./services/gateway/dist
 
-# Install dependencies
-RUN pnpm install
+# Install production dependencies only (allow scripts so ffmpeg-static downloads the binary)
+RUN pnpm install --prod --config.strict-ssl=false --config.ignore-scripts=false
 
-# Copy source code
-COPY packages/shared ./packages/shared
-COPY services/gateway ./services/gateway
-COPY tsconfig.base.json ./
-
-# Build
-RUN pnpm --filter @avenlo/shared build
-RUN pnpm --filter @avenlo/gateway build
-
-# Production dependencies stage
-FROM node:20-alpine AS deps
-
-WORKDIR /app
-
-RUN npm install -g pnpm
-
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
-COPY packages/shared/package.json ./packages/shared/
-COPY services/gateway/package.json ./services/gateway/
-
-RUN pnpm install --prod
-
-# Runtime stage - using Node Alpine for compatibility
-FROM node:20-alpine AS runtime
-
-WORKDIR /app
-
-# Copy built files
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/services/gateway/dist ./services/gateway/dist
-COPY --from=builder /app/services/gateway/package.json ./services/gateway/
-
-# Copy node_modules
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/services/gateway/node_modules ./services/gateway/node_modules
-
-# Set environment
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
 
-# Run the service
 CMD ["node", "services/gateway/dist/index.js"]

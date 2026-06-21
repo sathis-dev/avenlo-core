@@ -464,6 +464,201 @@
 .factor-mitigating:hover {
   @apply bg-success/10 border-success/30;
 }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-avenlo-cyan/30;
+}
+
+/* Forensic Layer Base Style */
+.forensic-layer {
+  @apply transition-all duration-300;
+  background: linear-gradient(
+    135deg,
+    rgba(26, 26, 46, 0.6) 0%,
+    rgba(8, 8, 20, 0.8) 100%
+  );
+  backdrop-filter: blur(20px);
+}
+
+.forensic-layer:hover {
+  @apply border-avenlo-border/50;
+}
+
+/* Glassmorphic Surface - Sovereign Tier */
+.glass-sovereign {
+  background: linear-gradient(
+    135deg,
+    rgba(5, 5, 5, 0.95) 0%,
+    rgba(10, 10, 20, 0.9) 50%,
+    rgba(5, 5, 5, 0.95) 100%
+  );
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 25px 50px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Neon State Indicators */
+.neon-pulse {
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor);
+  }
+}
+
+/* Intent Gradient Track */
+.intent-gradient-track {
+  background: linear-gradient(
+    to right,
+    #10B981 0%,
+    #6B7280 25%,
+    #F59E0B 50%,
+    #F97316 75%,
+    #EF4444 100%
+  );
+}
+
+/* Severity Glow Animations */
+.severity-low {
+  --glow-color: rgba(59, 130, 246, 0.4);
+}
+
+.severity-medium {
+  --glow-color: rgba(245, 158, 11, 0.4);
+}
+
+.severity-high {
+  --glow-color: rgba(249, 115, 22, 0.5);
+}
+
+.severity-critical {
+  --glow-color: rgba(239, 68, 68, 0.5);
+}
+
+.severity-glow {
+  animation: severity-breathe 2s ease-in-out infinite;
+}
+
+@keyframes severity-breathe {
+  0%, 100% {
+    box-shadow: 0 0 20px var(--glow-color);
+  }
+  50% {
+    box-shadow: 0 0 40px var(--glow-color), 0 0 60px var(--glow-color);
+  }
+}
+
+/* Detection Layer Indicators */
+.layer-sieve-active {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%);
+}
+
+.layer-analyst-active {
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, transparent 100%);
+}
+
+.layer-visionary-active {
+  border-color: rgba(0, 212, 255, 0.5) !important;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05) 0%, transparent 100%);
+}
+
+/* Sparkline Animation */
+.sparkline-path {
+  stroke-dasharray: 500;
+  stroke-dashoffset: 500;
+  animation: draw-line 1.5s ease-out forwards;
+}
+
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* OCR Scan Effect */
+.ocr-scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 212, 255, 0.8) 50%,
+    transparent 100%
+  );
+  animation: scan 3s linear infinite;
+}
+
+@keyframes scan {
+  0% {
+    top: 0;
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.5;
+  }
+}
+
+/* High-Contrast Badge States */
+.badge-active {
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: badge-shimmer 2s linear infinite;
+}
+
+@keyframes badge-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Radial Heat Map */
+.heat-radial {
+  background: conic-gradient(
+    from 180deg,
+    #10B981 0deg,
+    #F59E0B 120deg,
+    #EF4444 240deg,
+    #10B981 360deg
+  );
+  mask: radial-gradient(circle, transparent 40%, black 41%);
+  -webkit-mask: radial-gradient(circle, transparent 40%, black 41%);
+}
+
+/* Factor Cards */
+.factor-mitigating {
+  @apply bg-success/5 border-success/20;
+}
+
+.factor-mitigating:hover {
+  @apply bg-success/10 border-success/30;
+}
 
 .factor-aggravating {
   @apply bg-danger/5 border-danger/20;
@@ -471,4 +666,31 @@
 
 .factor-aggravating:hover {
   @apply bg-danger/10 border-danger/30;
+}
+
+/* Loading animation */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #080814;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s, visibility 0.5s;
+}
+.loading-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+.loader {
+  width: 60px;
+  height: 60px;
+  border: 3px solid #1A1A2E;
+  border-top-color: #00D4FF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

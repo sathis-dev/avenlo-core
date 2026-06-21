@@ -401,101 +401,79 @@ async function sendTranscriptToLogChannel(guild: any, ticket: any, transcript: s
 // ====================================
 
 export async function deployTicketPanel(channel: TextChannel): Promise<Message> {
+  const fs = await import('fs');
+  const path = await import('path');
+  
+  // Setup the generated high-quality banner
+  const bannerPath = 'C:\\Users\\sathi\\.gemini\\antigravity-ide\\brain\\4d4beb58-2c7d-4f83-adbb-80239af033b8\\avenlo_support_banner_1780701671036.png';
+  let bannerAttachment: any = null;
+  if (fs.existsSync(bannerPath)) {
+    bannerAttachment = {
+      attachment: fs.readFileSync(bannerPath),
+      name: 'banner.png'
+    };
+  }
+
   const embed = new EmbedBuilder()
-    .setColor(0x5865F2) // Discord Blurple
+    .setColor(0x2B2D31) // Discord native dark background for 'invisible' embed effect
     .setAuthor({
-      name: 'AVENLO SUPPORT',
+      name: 'A V E N L O  S T U D I O  —  S U P P O R T',
       iconURL: AvenloBranding.iconUrl,
     })
-    .setTitle(`\u200b`)
     .setDescription(
-      `## 🎫  Support Center\n\n` +
-      `Welcome to **Avenlo Studio** support! Our dedicated team is here to assist you with any questions or concerns.\n\n` +
-      `Click the button below to open a **private ticket** — all conversations are confidential and secure.\n\n` +
-      `\`\`\`\n` +
-      `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
-      `┃   📋 TICKET CATEGORIES                      ┃\n` +
-      `┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n` +
-      `┃  🚀 Project Inquiry    │  Start a project  ┃\n` +
-      `┃  🔧 Technical Support  │  Get tech help    ┃\n` +
-      `┃  💳 Billing & Payments │  Invoice queries  ┃\n` +
-      `┃  💡 Feature Request    │  Suggest ideas    ┃\n` +
-      `┃  🐛 Bug Report         │  Report issues    ┃\n` +
-      `┃  📝 General Inquiry    │  Other questions  ┃\n` +
-      `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n` +
-      `\`\`\``
-    )
-    .addFields(
-      {
-        name: `\u200b`,
-        value: `**━━━━━ ⏰ Response SLA ━━━━━**`,
-        inline: false,
-      },
-      {
-        name: `🔴 Urgent`,
-        value: `**30 min**`,
-        inline: true,
-      },
-      {
-        name: `🟠 High`,
-        value: `**2 hours**`,
-        inline: true,
-      },
-      {
-        name: `🟡 Medium`,
-        value: `**8 hours**`,
-        inline: true,
-      },
-      {
-        name: `🟢 Low`,
-        value: `**24 hours**`,
-        inline: true,
-      },
-      {
-        name: `⭐ VIP`,
-        value: `**Priority**`,
-        inline: true,
-      },
-      {
-        name: `\u200b`,
-        value: `\u200b`,
-        inline: true,
-      },
-      {
-        name: `\u200b`,
-        value: 
-          `> ⭐ **Verified Clients** receive priority support with 2-hour response times,\n` +
-          `> dedicated project channels, and direct access to senior developers.`,
-        inline: false,
-      }
+      `# 🎫 Support Center\n` +
+      `Welcome to the premier development & support hub.\n` +
+      `Select your inquiry type below to establish a secure transmission line.\n\n` +
+      `### 💠 Inquiry Classifications\n` +
+      `> 🚀 **Project Inquiry** — Request quotes & new builds\n` +
+      `> 🔧 **Technical Support** — Codebase & infrastructure\n` +
+      `> 💳 **Billing & Payments** — Invoices & subscriptions\n` +
+      `> 💡 **Feature Request** — Propose upgrades\n` +
+      `> 🐛 **Bug Report** — Report anomalies\n` +
+      `> 📝 **General Inquiry** — Connect with the team\n\n` +
+      `### ⏱️ Service Level Agreement\n` +
+      `\`🔴 URGENT\` **30 Minutes**\n` +
+      `\`🟠 HIGH  \` **2 Hours**\n` +
+      `\`🟡 MEDIUM\` **8 Hours**\n` +
+      `\`🟢 LOW   \` **24 Hours**\n` +
+      `\`⭐ VIP   \` **Priority Access**\n\n` +
+      `*⭐ **Verified Clients** unlock priority routing with a guaranteed 2-hour response and direct developer access.*`
     )
     .setFooter({ 
-      text: `${AvenloBranding.footer} • 🔒 All tickets are private and encrypted`,
+      text: `AVENLO CORE OS • End-to-End Encrypted Channel`,
       iconURL: AvenloBranding.iconUrl,
     })
     .setTimestamp();
 
+  if (bannerAttachment) {
+    embed.setImage('attachment://banner.png');
+  }
+
   const createButton = new ButtonBuilder()
     .setCustomId('ticket:create')
-    .setLabel('Open a Ticket')
+    .setLabel('INITIALIZE TICKET')
     .setEmoji('📩')
-    .setStyle(ButtonStyle.Primary);
+    .setStyle(ButtonStyle.Success);
 
   const faqButton = new ButtonBuilder()
     .setCustomId('ticket:faq')
-    .setLabel('FAQ & Help')
+    .setLabel('KNOWLEDGE BASE')
     .setEmoji('📖')
     .setStyle(ButtonStyle.Secondary);
 
   const statusButton = new ButtonBuilder()
-    .setLabel('Service Status')
-    .setEmoji('🟢')
+    .setLabel('SYSTEM STATUS')
+    .setEmoji('⚡')
     .setStyle(ButtonStyle.Link)
     .setURL(AvenloBranding.website || 'https://avenlo.studio');
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(createButton, faqButton, statusButton);
 
-  return await channel.send({ embeds: [embed], components: [row] });
+  return await channel.send({ 
+    embeds: [embed], 
+    components: [row],
+    files: bannerAttachment ? [bannerAttachment] : []
+  });
 }
 
 // ====================================

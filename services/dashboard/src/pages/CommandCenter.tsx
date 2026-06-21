@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useSovereign, ForensicSideSheet, KineticActivityFeed } from '../components/sovereign';
+import { useSovereign, ForensicSideSheet, KineticActivityFeed, QuantumGrid } from '../components/sovereign';
 import { useAuthStore } from '../stores/authStore';
 
 // ====================================
@@ -284,9 +284,12 @@ const CommandCenter: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column - Activity Feed */}
-        <div className="col-span-8">
-          <div className="h-[calc(100vh-160px)]">
+        {/* Right Column - Activity Feed & Quantum Grid */}
+        <div className="col-span-8 flex flex-col gap-6">
+          <div className="h-[500px]">
+             <QuantumGrid />
+          </div>
+          <div className="h-[calc(100vh-690px)] min-h-[300px]">
             <KineticActivityFeed maxEvents={100} simulateEvents={true} />
           </div>
         </div>

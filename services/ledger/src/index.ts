@@ -3,9 +3,15 @@
 // Event-Sourced Credit Processing System
 // ====================================
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from project root
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { 
   initMongo, 
+  initRedis,
   initEventBus,
   createLogger,
 } from '@avenlo/shared';
@@ -42,6 +48,13 @@ async function bootstrap(): Promise<void> {
     const consumer = getLedgerConsumer();
     await consumer.start();
     logger.info('✅ Ledger Consumer started (exactly-once processing enabled)');
+
+    // Initialize Redis (required for getRedisClient calls in LedgerService and RoleManager)
+    initRedis({
+      url: process.env.REDIS_URL!,
+      keyPrefix: 'avenlo:',
+    });
+    logger.info('✅ Redis initialized');
 
     // Initialize Legacy Ledger Service (for backward compatibility)
     const ledger = new LedgerService();

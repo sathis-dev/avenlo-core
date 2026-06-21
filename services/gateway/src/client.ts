@@ -32,7 +32,10 @@ import { TicketHandlers } from './handlers/TicketHandler';
 import { AIModerationHandlers } from './handlers/AIModeration';
 import { WelcomeHandlers } from './handlers/WelcomeHandler';
 import { ServerProtection } from './handlers/ServerProtection';
+import { VerificationHandlers } from './handlers/VerificationHandler';
 import { RulesHandlers } from './handlers/RulesHandler';
+import * as MessageWatcher from './handlers/MessageWatcher';
+import * as LedgerHandler from './handlers/LedgerHandler';
 
 const logger = createLogger('gateway-client');
 
@@ -49,6 +52,7 @@ export class GatewayClient extends Client {
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildVoiceStates,
       ],
     });
 
@@ -62,7 +66,27 @@ export class GatewayClient extends Client {
       logger.info(`✅ Logged in as ${readyClient.user.tag}`);
       logger.info(`🛡️ AI Moderation: ACTIVE`);
       logger.info(`👋 Welcome System: ACTIVE`);
-      logger.info(`🔒 Server Protection: ACTIVE`);
+      // Set Rotating Rich Presence with LIVE REAL Data
+      let statusIndex = 0;
+      setInterval(() => {
+        // Calculate real live stats
+        const serverCount = readyClient.guilds.cache.size;
+        const memberCount = readyClient.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+        
+        const statuses = [
+          { name: `over ${serverCount} Servers`, type: 3 }, // Watching
+          { name: `over ${memberCount.toLocaleString()} Users`, type: 3 }, // Watching
+          { name: 'for anomalies...', type: 3 }, // Watching
+          { name: 'with the AI Engine', type: 0 } // Playing
+        ];
+
+        const currentStatus = statuses[statusIndex];
+        readyClient.user.setPresence({
+          activities: [{ name: currentStatus.name, type: currentStatus.type }],
+          status: 'online',
+        });
+        statusIndex = (statusIndex + 1) % statuses.length;
+      }, 15000); // Rotate every 15 seconds
 
       // Publish ready event to Redis
       const redis = getRedisClient();
@@ -74,6 +98,80 @@ export class GatewayClient extends Client {
           guildCount: readyClient.guilds.cache.size,
         },
       });
+
+      // Start Kinetic Engine punishment listener
+      MessageWatcher.initPunishmentListener(this);
+
+      // Initialize Music System
+      const { MusicHandler } = await import('./handlers/MusicHandler');
+      await MusicHandler.init(readyClient as Client);
+
+      // Start Proof-of-Value Tier Upgrade listener
+      LedgerHandler.initTierUpgradeListener(this);
+
+      // Start Phantom Agent deployment listener
+      redis.subscribe('phantom:deploy_requested' as any, async (event) => {
+        const payload = event.payload as {
+          guildId: string;
+          channelId: string;
+          heat: number;
+          context: string;
+        };
+        try {
+          const guild = readyClient.guilds.cache.get(payload.guildId);
+          if (!guild) return;
+          const channel = guild.channels.cache.get(payload.channelId) as TextChannel;
+          if (!channel || !channel.isTextBased()) return;
+
+          const { getPhantomAgentManager } = await import('./moderation/PhantomAgent');
+          const phantomManager = getPhantomAgentManager();
+          
+          // Generate context array from recent messages
+          const messages = await channel.messages.fetch({ limit: 5 });
+          const contextMessages = messages.map(m => `${m.author.username}: ${m.content}`).reverse();
+          
+          await phantomManager.deployPhantom(channel, contextMessages);
+        } catch (err) {
+          logger.error('Phantom Agent deployment error:', err);
+        }
+      }).catch(err => {
+        logger.error('Failed to subscribe to phantom:deploy_requested', err);
+      });
+
+      // Start Hive Mind Sync listener
+      redis.subscribe('security:hive_mind_sync' as any, async (event) => {
+        const payload = event.payload as {
+          userId: string;
+          originGuildId: string;
+          vector: string;
+          score: number;
+          timestamp: number;
+        };
+        try {
+          const { ThreatMatrix } = await import('./kernel/ThreatMatrix');
+          const threatMatrix = ThreatMatrix.getInstance();
+          
+          // Note: We don't add the full score, just a fraction of it as "Global Intelligence"
+          // We already have `getGlobalThreatScore` that ThreatMatrix uses internally,
+          // but we can also directly update the user's global profile here if needed.
+          logger.warn(`🧠 HIVE MIND SYNC: Threat detected in ${payload.originGuildId} for user ${payload.userId} (${payload.vector})`);
+        } catch (err) {
+          logger.error('Hive Mind Sync error:', err);
+        }
+      }).catch(err => {
+        logger.error('Failed to subscribe to security:hive_mind_sync', err);
+      });
+    });
+
+    // ====================================
+    // REACTION HANDLER (LEDGER VALUE)
+    // ====================================
+    this.on(Events.MessageReactionAdd, async (reaction, user) => {
+      try {
+        await LedgerHandler.handleReactionAdd(reaction, user);
+      } catch (error) {
+        logger.error('Reaction handler error:', error);
+      }
     });
 
     // ====================================
@@ -84,6 +182,19 @@ export class GatewayClient extends Client {
         await this.handleMessage(message);
       } catch (error) {
         logger.error('Message handler error:', error);
+      }
+    });
+
+    // ====================================
+    // TYPING START (BEHAVIORAL BIOMETRICS)
+    // ====================================
+    this.on(Events.TypingStart, async (typing) => {
+      try {
+        const redis = getRedisClient().getClient();
+        // Store exact millisecond they started typing
+        await redis.set(`kernel:typing:${typing.guild?.id}:${typing.user.id}`, Date.now().toString(), 'EX', 60);
+      } catch (err) {
+        // Ignore redis errors on high volume events
       }
     });
 
@@ -182,17 +293,19 @@ export class GatewayClient extends Client {
   }
 
   // ====================================
-  // MESSAGE HANDLER (GUARDIAN AI)
+  // MESSAGE HANDLER (SECURITY KERNEL)
   // ====================================
   private async handleMessage(message: Message): Promise<void> {
-    // Ignore bots and DMs
-    if (message.author.bot || !message.guild) return;
-
-    // Guardian Pipeline (Multi-Layer AI)
-    const { GuardianPipeline } = await import('./moderation/GuardianPipeline');
-    const guardian = new GuardianPipeline(message.guild.id);
-
-    await guardian.processMessage(message);
+    // Security Kernel processes all messages for multi-ring defense
+    const { SecurityKernel } = await import('./kernel/SecurityKernel');
+    const kernel = SecurityKernel.getInstance();
+    
+    await kernel.processMessage(message);
+    
+    // (Kinetic Engine runs in parallel for forensics)
+    MessageWatcher.processMessage(message).catch((err) => {
+      logger.error('Kinetic Engine message watcher error:', err);
+    });
   }
 
   // ====================================
@@ -201,21 +314,17 @@ export class GatewayClient extends Client {
   private async handleMemberJoin(member: GuildMember): Promise<void> {
     const guild = member.guild;
 
-    // Check for raid using advanced Token Bucket Detector
-    const { getRaidDetector } = await import('./moderation/RaidDetector');
-    const detector = getRaidDetector(guild.id);
-    const raidAction = await detector.processJoin(member);
+    // Process through Security Kernel (Anti-Raid, Verification enforcement)
+    const { SecurityKernel } = await import('./kernel/SecurityKernel');
+    const kernel = SecurityKernel.getInstance();
+    
+    const verdict = await kernel.processMemberJoin(member);
 
-    if (raidAction) {
-      // RaidDetector handles the lockdown logic internally via events
-      return;
+    // If kernel didn't take immediate hostile action, proceed with welcome
+    if (!verdict.actionTaken) {
+      await WelcomeHandlers.handleMemberJoin(member);
+      logger.info(`👋 Welcomed ${member.user.tag} to ${guild.name}`);
     }
-
-    // Delegate to the welcome system — it loads the per-guild config
-    // (Redis hot-reloaded) and handles channel send + DM + auto-roles.
-    await WelcomeHandlers.handleMemberJoin(member);
-
-    logger.info(`👋 Welcomed ${member.user.tag} to ${guild.name}`);
   }
 
   // ====================================
@@ -303,6 +412,13 @@ export class GatewayClient extends Client {
       },
     });
 
+    // Handle rules system buttons
+    if (action === 'identity') {
+      const { IdentityHandler } = await import('./handlers/IdentityHandler');
+      await IdentityHandler.handleInteraction(interaction);
+      return;
+    }
+
     // Handle welcome system buttons
     if (action === 'welcome') {
       await WelcomeHandlers.handleWelcomeButton(interaction, subAction);
@@ -328,11 +444,26 @@ export class GatewayClient extends Client {
     }
 
     // Handle verification buttons
-    if (action === 'verify') {
-      await ServerProtection.startVerification(interaction.member as GuildMember, interaction);
+    if (action === 'avenlo' && subAction === 'start_verification') {
+      await VerificationHandlers.handleBeginVerification(interaction);
       return;
     }
 
+    if (action === 'verify') {
+      if (subAction === 'start') {
+        await VerificationHandlers.handleBeginVerification(interaction);
+        return;
+      }
+      if (subAction === 'puzzle') {
+        const puzzleIndex = params[0];
+        await VerificationHandlers.handlePuzzleClick(interaction, puzzleIndex);
+        return;
+      }
+      if (subAction === 'request_review') {
+        await VerificationHandlers.handleRequestReview(interaction);
+        return;
+      }
+    }
     // Handle ticket system buttons
     if (action === 'ticket') {
       switch (subAction) {
@@ -394,10 +525,29 @@ export class GatewayClient extends Client {
       return;
     }
 
+    // Handle Music buttons
+    if (action.startsWith('music_')) {
+      const { MusicHandler } = await import('./handlers/MusicHandler');
+      await MusicHandler.handleButton(interaction);
+      return;
+    }
+
     // Handle common button actions
     switch (action) {
       case 'start_project':
         await this.handleStartProject(interaction);
+        break;
+      case 'manage_roles_audit':
+        {
+          const { handleRoleManageAudit } = await import('./handlers/RoleManager');
+          await handleRoleManageAudit(interaction);
+        }
+        break;
+      case 'manage_roles_ai':
+        {
+          const { handleRoleManageAI } = await import('./handlers/RoleManager');
+          await handleRoleManageAI(interaction);
+        }
         break;
       case 'confirm':
       case 'cancel':
@@ -419,6 +569,11 @@ export class GatewayClient extends Client {
       return;
     }
 
+    // Handle verification captcha modal
+    if (action === 'verify' && subAction === 'captcha_submit') {
+      await VerificationHandlers.handleVerificationCaptcha(interaction);
+      return;
+    }
     // Handle ticket modals
     if (action === 'ticket') {
       switch (subAction) {
@@ -458,6 +613,12 @@ export class GatewayClient extends Client {
     const selectedValues = interaction.values;
 
     logger.debug(`Select menu: ${action}:${subAction || ''}, values: ${selectedValues.join(', ')}`);
+
+    if (action === 'kernel_role_panel') {
+      const { RolePanelHandler } = await import('./handlers/RolePanelHandler');
+      await RolePanelHandler.handleInteraction(interaction);
+      return;
+    }
 
     // Handle ticket category selection
     if (action === 'ticket' && subAction === 'select_category') {

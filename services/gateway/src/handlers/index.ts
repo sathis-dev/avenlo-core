@@ -12,3 +12,4 @@ export * from './RulesHandler';
 export * from './RoleManager';
 export * from './PermissionManager';
 export * from './ServerProtection';
+export * from './VerificationHandler';

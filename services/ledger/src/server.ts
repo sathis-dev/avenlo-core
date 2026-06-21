@@ -5,6 +5,7 @@
 
 import express from 'express';
 import { createLogger, getMongoClient, getEventBus, ConsumerStats } from '@avenlo/shared';
+import { githubWebhookRouter } from './webhooks/github';
 
 const logger = createLogger('ledger-server');
 
@@ -20,6 +21,9 @@ export interface HealthServerOptions {
 export function startHealthServer(port: number, options?: HealthServerOptions): void {
   const app = express();
   app.use(express.json());
+
+  // Webhook routes
+  app.use('/api/webhooks', githubWebhookRouter);
 
   // Detailed health check with event bus stats
   app.get('/health', async (req, res) => {

@@ -5,7 +5,8 @@
 # ====================================
 
 FROM node:20-alpine AS base
-RUN npm install -g pnpm
+RUN npm install -g pnpm --strict-ssl=false
+ENV npm_config_strict_ssl=false
 
 # ====================================
 # STAGE 1: Install Dependencies
@@ -50,7 +51,8 @@ RUN pnpm build:server
 # STAGE 4: Production Image
 # ====================================
 FROM node:20-alpine AS production
-RUN npm install -g pnpm
+RUN npm install -g pnpm --strict-ssl=false
+ENV npm_config_strict_ssl=false
 
 WORKDIR /app
 

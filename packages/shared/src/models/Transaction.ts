@@ -19,7 +19,8 @@ export type TransactionReason =
   | 'role_purchase'
   | 'transfer_out'
   | 'transfer_in'
-  | 'penalty';
+  | 'penalty'
+  | 'helpful_reaction';
 
 export interface ITransaction extends Document {
   // Identifiers
@@ -87,6 +88,7 @@ const TransactionSchema = new Schema<ITransaction>(
         'transfer_out',
         'transfer_in',
         'penalty',
+        'helpful_reaction',
       ],
       required: true,
     },

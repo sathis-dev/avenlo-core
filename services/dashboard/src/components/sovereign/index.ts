@@ -4,7 +4,9 @@
 // ====================================
 
 // Command Palette
-export { SovereignCommandPalette } from './SovereignCommandPalette';
+export * from './SovereignCommandPalette';
+export * from './SovereignProvider';
+export * from './QuantumGrid';
 export type {
   SovereignCommand,
   CommandTier,

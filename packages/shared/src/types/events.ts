@@ -56,6 +56,7 @@ export const EventTypes = {
   LEDGER_ROLE_DEMOTED: 'ledger:role:demoted',
   LEDGER_LEADERBOARD_UPDATE: 'ledger:leaderboard:update',
   LEDGER_TRANSACTION_CLEARED: 'ledger:transaction:cleared',
+  TIER_UPGRADE: 'tier:upgrade',
 
   // ====================================
   // TICKET EVENTS
@@ -80,6 +81,16 @@ export const EventTypes = {
   // KINETIC EVENTS (Guardian / Threat Engine)
   // ====================================
   KINETIC_THREAT_DETECTED: 'kinetic:threat:detected',
+  KINETIC_VISIONARY_SCAN: 'kinetic:visionary:scan',
+
+  // ====================================
+  // VERIFICATION EVENTS
+  // ====================================
+  VERIFICATION_STARTED: 'verification:started',
+  VERIFICATION_COMPLETED: 'verification:completed',
+  VERIFICATION_FAILED: 'verification:failed',
+  RAID_LOCKDOWN: 'raid:lockdown',
+  RAID_LOCKDOWN_ALERT: 'raid:lockdown:alert',
 
   // ====================================
   // WELCOME EVENTS
@@ -361,7 +372,8 @@ export type CreditReason =
   | 'admin_revoke'
   | 'perk_exchange'
   | 'transfer_sent'
-  | 'transfer_received';
+  | 'transfer_received'
+  | 'helpful_reaction';
 
 export interface LedgerCreditsEarnedPayload {
   userId: string;
@@ -410,6 +422,16 @@ export interface LedgerRoleUpdatePayload {
   toRole: string;
   newCredits: number;
   threshold: number;
+}
+
+export interface TierUpgradePayload {
+  userId: string;
+  discordId: string;
+  username: string;
+  roleName: 'Tactical' | 'Strategic' | 'Sovereign';
+  creditsTotal: number;
+  threshold: number;
+  upgradedAt: string;
 }
 
 export interface LedgerLeaderboardUpdatePayload {
@@ -702,7 +724,71 @@ export interface KineticThreatDetectedPayload {
   detectedAt: string;
 }
 
+export interface KineticVisionaryScanPayload {
+  guildId: string;
+  userId: string;
+  username: string;
+  messages: Array<{
+    content: string;
+    timestamp: number;
+    channelId: string;
+    messageId: string;
+  }>;
+  triggeredAt: string;
+}
+
 // ====================================
+// ====================================
+// VERIFICATION EVENT PAYLOADS
+// ====================================
+
+export interface VerificationStartedPayload {
+  guildId: string;
+  userId: string;
+  username: string;
+  accountAgeDays: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  startedAt: string;
+};
+
+export interface VerificationCompletedPayload {
+  guildId: string;
+  userId: string;
+  username: string;
+  timeTakenMs: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  stagesPassed: number;
+  completedAt: string;
+};
+
+export interface VerificationFailedPayload {
+  guildId: string;
+  userId: string;
+  username: string;
+  reason: 'timeout' | 'captcha_fail' | 'puzzle_fail' | 'high_risk_alt' | 'raid_lockdown';
+  stageReached: number;
+  failedAt: string;
+};
+
+export interface RaidLockdownPayload {
+  guildId: string;
+  guildName: string;
+  joinCount: number;
+  windowMs: number;
+  triggeredBy: 'velocity' | 'manual' | 'system';
+  lockdownDurationMs: number;
+  triggeredAt: string;
+};
+
+export interface RaidLockdownAlertPayload {
+  guildId: string;
+  guildName: string;
+  joinCount: number;
+  windowMs: number;
+  triggeredAt: string;
+  userIds: string[];
+}
+
 // EVENT REGISTRY - TYPE-SAFE MAPPING
 // Uses TypeScript's `keyof` and `infer` for strict typing
 // ====================================
@@ -750,6 +836,7 @@ export interface EventPayloadMap {
   [EventTypes.LEDGER_ROLE_DEMOTED]: LedgerRoleUpdatePayload;
   [EventTypes.LEDGER_LEADERBOARD_UPDATE]: LedgerLeaderboardUpdatePayload;
   [EventTypes.LEDGER_TRANSACTION_CLEARED]: LedgerTransactionClearedPayload;
+  [EventTypes.TIER_UPGRADE]: TierUpgradePayload;
 
   // Tickets
   [EventTypes.TICKET_CREATED]: TicketCreatedPayload;
@@ -768,6 +855,7 @@ export interface EventPayloadMap {
 
   // Kinetic
   [EventTypes.KINETIC_THREAT_DETECTED]: KineticThreatDetectedPayload;
+  [EventTypes.KINETIC_VISIONARY_SCAN]: KineticVisionaryScanPayload;
 
   // Welcome
   [EventTypes.WELCOME_CONFIG_UPDATED]: WelcomeConfigUpdatedPayload;
@@ -776,6 +864,13 @@ export interface EventPayloadMap {
   [EventTypes.RULES_CONFIG_UPDATED]: RulesConfigUpdatedPayload;
   [EventTypes.RULES_ACCEPTED]: RulesAcceptedPayload;
   [EventTypes.RULES_PUBLISHED]: RulesPublishedPayload;
+
+  // Verification
+  [EventTypes.VERIFICATION_STARTED]: VerificationStartedPayload;
+  [EventTypes.VERIFICATION_COMPLETED]: VerificationCompletedPayload;
+  [EventTypes.VERIFICATION_FAILED]: VerificationFailedPayload;
+  [EventTypes.RAID_LOCKDOWN]: RaidLockdownPayload;
+  [EventTypes.RAID_LOCKDOWN_ALERT]: RaidLockdownAlertPayload;
 
   // System
   [EventTypes.SYSTEM_ERROR]: SystemErrorPayload;

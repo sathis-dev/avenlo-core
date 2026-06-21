@@ -9,7 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.10.0",
+    "@anthropic-ai/sdk": "^0.24.0",
     "@avenlo/shared": "workspace:*",
     "@types/uuid": "^11.0.0",
     "discord.js": "^14.14.1",

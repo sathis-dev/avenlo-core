@@ -20,98 +20,96 @@ export const helpCommand: Command = {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const embed = new EmbedBuilder()
       .setColor(AvenloColors.CYAN)
-      .setTitle(`${AvenloEmojis.SPARKLES} Avenlo Core Help`)
+      .setAuthor({
+        name: 'A V E N L O  S T U D I O  —  S Y S T E M  M A N U A L',
+        iconURL: AvenloBranding.iconUrl,
+      })
+      .setTitle(`Command Center Directive`)
       .setDescription(
-        `Welcome to **${AvenloBranding.name}**!\n\n` +
-        `${AvenloBranding.tagline}\n\n` +
-        `Use the menu below to explore our features.`
+        `> Welcome to the **Avenlo Core OS** command lattice.\n` +
+        `> Use the interactive matrix below to filter sub-systems.\n\n` +
+        `**<:dot_cyan:1234567890> COMMAND MODULES**`
       )
       .addFields(
         {
-          name: `${AvenloEmojis.ROCKET} Project Commands`,
-          value: [
-            '`/project start` - Start a new project with AI discovery',
-            '`/project status` - Check your project status',
-            '`/project list` - View all your projects',
-          ].join('\n'),
+          name: `🚀 Project Suite`,
+          value: 
+            `> \`/project start\` — Initialize AI discovery\n` +
+            `> \`/project status\` — Active telemetry\n` +
+            `> \`/project list\` — Project archive`,
           inline: false,
         },
         {
-          name: `${AvenloEmojis.MONEY} Economy Commands`,
-          value: [
-            '`/vault balance` - Check your credit balance',
-            '`/vault history` - View transaction history',
-            '`/vault exchange` - Exchange credits for perks',
-          ].join('\n'),
+          name: `💰 Vault & Economy`,
+          value: 
+            `> \`/vault balance\` — Credit ledger\n` +
+            `> \`/vault history\` — Transaction log\n` +
+            `> \`/vault exchange\` — Credit exchange`,
           inline: false,
         },
         {
-          name: `${AvenloEmojis.CHART} Analytics Commands`,
-          value: [
-            '`/dashboard view` - View project dashboard',
-            '`/leaderboard` - View contribution rankings',
-            '`/profile` - View your or another user\'s profile',
-          ].join('\n'),
+          name: `📊 Analytics Core`,
+          value: 
+            `> \`/dashboard view\` — Launch Web UI\n` +
+            `> \`/leaderboard\` — Top contributors\n` +
+            `> \`/profile\` — User dossier`,
           inline: false,
         },
         {
-          name: `🎫 Support Commands`,
-          value: [
-            '`/ticket create` - Create a support ticket',
-            '`/ticket list` - View your open tickets',
-            '`/ticket claim` - Claim an open ticket (Dev)',
-          ].join('\n'),
+          name: `🎫 Support Matrix`,
+          value: 
+            `> \`/ticket create\` — Open secure line\n` +
+            `> \`/ticket list\` — Active tickets\n` +
+            `> \`/ticket claim\` — Staff assignment`,
           inline: false,
         },
         {
-          name: `🛡️ Moderation Commands`,
-          value: [
-            '`/mod user warn/mute/kick/ban` - User moderation',
-            '`/mod channel lock/purge` - Channel control',
-            '`/mod ai analyze` - AI content analysis',
-          ].join('\n'),
+          name: `🛡️ Guardian Pipeline`,
+          value: 
+            `> \`/mod user\` — Standard infraction\n` +
+            `> \`/mod channel\` — Channel lockdown\n` +
+            `> \`/mod ai analyze\` — Deep packet inspection`,
           inline: false,
         },
         {
-          name: `🎯 Tactical Commands`,
-          value: [
-            '`/thermal` - View 3D Heat Prism visualization',
-            '`/shadow` - Pull 24h reputation sparkline',
-            '`/forensic` - Open CSI logic sheet for event',
-            '`/intercept` - Isolate user for deep AI auditing',
-          ].join('\n'),
+          name: `🎯 Tactical Layer`,
+          value: 
+            `> \`/tactical thermal\` — 3D Heat Prism\n` +
+            `> \`/tactical shadow\` — Identity Sparkline\n` +
+            `> \`/tactical forensic\` — CSI Logic Sheet\n` +
+            `> \`/tactical intercept\` — Target Isolation`,
           inline: false,
         },
         {
-          name: `⚡ Strategic Commands`,
-          value: [
-            '`/lockdown` - Activate raid protocols',
-            '`/sieve patch` - Inject L1 filter patterns',
-            '`/policy inject` - Add L2 AI heuristics',
-          ].join('\n'),
+          name: `⚡ Strategic Layer`,
+          value: 
+            `> \`/strategic lockdown\` — Raid Protocols\n` +
+            `> \`/strategic sieve patch\` — L1 Injection\n` +
+            `> \`/strategic policy inject\` — L2 Heuristics`,
           inline: false,
         },
         {
-          name: `👑 Sovereign Commands`,
-          value: [
-            '`/avenlo pivot` - Shift global culture/vibe',
-            '`/avenlo nuke` - Trigger Safe-State Zero',
-            '`/avenlo rehabilitate` - Grant legacy trust',
-          ].join('\n'),
+          name: `👑 Sovereign Layer`,
+          value: 
+            `> \`/avenlo pivot\` — Culture Shift\n` +
+            `> \`/avenlo nuke\` — Safe-State Zero\n` +
+            `> \`/avenlo rehabilitate\` — Legacy Trust`,
           inline: false,
         },
         {
-          name: `${AvenloEmojis.GEAR} Admin Commands`,
-          value: [
-            '`/admin credits` - Manage user credits',
-            '`/admin sync` - Sync with external services',
-            '`/dashboard create` - Create a new dashboard',
-            '`/rules` - Deploy server rules (Admin)',
-          ].join('\n'),
+          name: `⚙️ Administration`,
+          value: 
+            `> \`/admin credits\` — Credit override\n` +
+            `> \`/admin sync\` — Force state sync\n` +
+            `> \`/dashboard create\` — New instance\n` +
+            `> \`/rules\` — Deploy governance`,
           inline: false,
         }
       )
-      .setFooter({ text: AvenloBranding.footer })
+      .setFooter({ 
+        text: `AVENLO CORE OS • End-to-End Encrypted Manual`,
+        iconURL: AvenloBranding.iconUrl,
+      })
       .setTimestamp();
 
     const selectMenu = new StringSelectMenuBuilder()

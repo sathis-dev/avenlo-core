@@ -163,14 +163,14 @@ export async function renderWelcomeCard(
 
   // Eyebrow: "WELCOME TO {GUILD}"
   ctx.fillStyle = config.neonBorderColor;
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = 'bold 22px "Liberation Sans", sans-serif';
   ctx.textBaseline = 'top';
   const guildName = clampText(member.guild.name.toUpperCase(), 32);
   ctx.fillText(`WELCOME TO ${guildName}`, textX, 70);
 
   // Username (geometric, large)
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 56px sans-serif';
+  ctx.font = 'bold 56px "Liberation Sans", sans-serif';
   const username = clampText(member.user.displayName, 18);
   ctx.fillText(username, textX, 105);
 
@@ -184,18 +184,18 @@ export async function renderWelcomeCard(
 
   // Tagline
   ctx.fillStyle = '#A5ADBA';
-  ctx.font = '22px sans-serif';
+  ctx.font = '22px "Liberation Sans", sans-serif';
   ctx.fillText(clampText(config.cardTagline, 50), textX, 198);
 
   // Footer: member count + handle
   ctx.fillStyle = '#6B7280';
-  ctx.font = '18px sans-serif';
+  ctx.font = '18px "Liberation Sans", sans-serif';
   const handle = clampText(`@${member.user.username}`, 24);
   ctx.fillText(handle, textX, 250);
 
   if (config.showMemberCount) {
     ctx.fillStyle = config.embedAccentColor;
-    ctx.font = 'bold 20px sans-serif';
+    ctx.font = 'bold 20px "Liberation Sans", sans-serif';
     const memberLine = `MEMBER #${member.guild.memberCount.toLocaleString()}`;
     ctx.fillText(memberLine, textX, 280);
   }

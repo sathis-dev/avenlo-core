@@ -101,14 +101,14 @@ export class SentimentEngine {
     const historyKey = `${SENTIMENT_HISTORY_PREFIX}:${this.guildId}:${channelId}`;
 
     // Get current values
-    const [heatStr, velocityStr, historyJson] = await Promise.all([
+    const [heatStr, velocityCount, historyJson] = await Promise.all([
       redis.get(heatKey),
-      redis.get(velocityKey),
+      redis.zcard(velocityKey),
       redis.get(historyKey),
     ]);
 
     const heat = heatStr ? parseFloat(heatStr) : 0;
-    const velocity = velocityStr ? parseFloat(velocityStr) : 0;
+    const velocity = (velocityCount || 0) / (VELOCITY_WINDOW_SECONDS / 60);
     const history: SentimentEntry[] = historyJson
       ? JSON.parse(historyJson)
       : [];
@@ -212,7 +212,34 @@ export class SentimentEngine {
       `Channel ${channelId}: heat=${heat.toFixed(1)}, velocity=${velocity.toFixed(1)}, sentiment=${sentiment.toFixed(2)}`
     );
 
-    return this.getChannelHeatStatus(channelId);
+    const status = await this.getChannelHeatStatus(channelId);
+
+    // [OMEGA FEATURE] Deploy Phantom Agent if channel is HOT and getting hotter
+    if (status.status === 'HOT' && heatDelta > 0) {
+      try {
+        const { getPhantomAgentManager } = await import('./PhantomAgent');
+        const phantomManager = getPhantomAgentManager();
+        
+        // Fetch discord channel via gateway client?
+        // Wait, SentimentEngine doesn't have the client. Let's fire an event instead.
+        import('@avenlo/shared').then(({ getRedisClient }) => {
+          const redis = getRedisClient();
+          redis.publish('phantom:deploy_requested' as any, {
+            source: 'gateway',
+            payload: {
+              guildId: this.guildId,
+              channelId: channelId,
+              heat: heat,
+              context: history.map(h => h.sentiment).join(', '),
+            }
+          });
+        });
+      } catch (err) {
+        logger.error('Failed to request phantom deployment:', err);
+      }
+    }
+
+    return status;
   }
 
   /**
