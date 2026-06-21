@@ -50,7 +50,8 @@ numReplicas = 1
 # Required for Gateway:
 #   DISCORD_TOKEN          - Bot token
 #   DISCORD_CLIENT_ID      - Application client ID
-#   DISCORD_GUILD_ID       - Target server ID
+#   DISCORD_GUILD_ID       - Target server ID (single guild fallback)
+#   DISCORD_GUILD_IDS      - Comma-separated guild IDs (multi-server)
 #   MONGODB_URI            - MongoDB connection string
 #   REDIS_URL              - Redis connection string
 #   ENCRYPTION_KEY         - 32-byte hex key for encryption
