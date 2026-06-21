@@ -22,7 +22,7 @@ const logger = createLogger('rules-command');
 export const rulesCommand = {
   data: new SlashCommandBuilder()
     .setName('rules')
-    .setDescription('📜 Manage the server rules system')
+    .setDescription('Publish and accept server rules')
     .addSubcommand((sub) =>
       sub
         .setName('publish')
@@ -105,6 +105,7 @@ export const rulesCommand = {
           : '✅ Acceptance recorded.',
         ephemeral: true,
       });
+      return;
     }
 
     await interaction.reply({

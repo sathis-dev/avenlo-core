@@ -9,13 +9,13 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { AvenloColors, AvenloBranding, AvenloEmojis } from '@avenlo/shared';
+import { AvenloColors, AvenloBranding } from '@avenlo/shared';
 import { Command } from './index';
 
 export const helpCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('Get help with Avenlo Core commands') as SlashCommandBuilder,
+    .setDescription('View all available commands and how to use them') as SlashCommandBuilder,
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const embed = new EmbedBuilder()
@@ -26,88 +26,74 @@ export const helpCommand: Command = {
       })
       .setTitle(`Command Center Directive`)
       .setDescription(
-        `> Welcome to the **Avenlo Core OS** command lattice.\n` +
-        `> Use the interactive matrix below to filter sub-systems.\n\n` +
-        `**<:dot_cyan:1234567890> COMMAND MODULES**`
+        `> Welcome to the **Avenlo Core** command center.\n` +
+        `> Use the menu below to explore each module.\n\n` +
+        `**COMMAND MODULES**`
       )
       .addFields(
         {
           name: `🚀 Project Suite`,
           value: 
-            `> \`/project start\` — Initialize AI discovery\n` +
-            `> \`/project status\` — Active telemetry\n` +
-            `> \`/project list\` — Project archive`,
+            `> \`/project start\` — Start a new project\n` +
+            `> \`/project status\` — Check project status\n` +
+            `> \`/project list\` — View all projects`,
           inline: false,
         },
         {
           name: `💰 Vault & Economy`,
           value: 
-            `> \`/vault balance\` — Credit ledger\n` +
-            `> \`/vault history\` — Transaction log\n` +
-            `> \`/vault exchange\` — Credit exchange`,
+            `> \`/vault balance\` — Check your credits\n` +
+            `> \`/vault history\` — Transaction history\n` +
+            `> \`/vault exchange\` — Redeem perks`,
           inline: false,
         },
         {
-          name: `📊 Analytics Core`,
+          name: `📊 Analytics`,
           value: 
-            `> \`/dashboard view\` — Launch Web UI\n` +
+            `> \`/dashboard view\` — Project dashboard\n` +
             `> \`/leaderboard\` — Top contributors\n` +
-            `> \`/profile\` — User dossier`,
+            `> \`/profile\` — View user profile`,
           inline: false,
         },
         {
-          name: `🎫 Support Matrix`,
+          name: `🎫 Support`,
           value: 
-            `> \`/ticket create\` — Open secure line\n` +
-            `> \`/ticket list\` — Active tickets\n` +
-            `> \`/ticket claim\` — Staff assignment`,
+            `> \`/ticket create\` — Open a ticket\n` +
+            `> \`/ticket list\` — Your open tickets\n` +
+            `> \`/ticket claim\` — Claim a ticket (staff)`,
           inline: false,
         },
         {
-          name: `🛡️ Guardian Pipeline`,
+          name: `🛡️ Moderation`,
           value: 
-            `> \`/mod user\` — Standard infraction\n` +
-            `> \`/mod channel\` — Channel lockdown\n` +
-            `> \`/mod ai analyze\` — Deep packet inspection`,
+            `> \`/mod user warn|mute|kick|ban\` — User actions\n` +
+            `> \`/mod channel lock|purge|slowmode\` — Channel control\n` +
+            `> \`/mod ai analyze\` — AI content analysis\n` +
+            `> \`/mod tactical thermal|shadow\` — Behavioral forensics\n` +
+            `> \`/mod strategic lockdown|sieve|policy\` — Defense systems`,
           inline: false,
         },
         {
-          name: `🎯 Tactical Layer`,
+          name: `👑 Sovereign`,
           value: 
-            `> \`/tactical thermal\` — 3D Heat Prism\n` +
-            `> \`/tactical shadow\` — Identity Sparkline\n` +
-            `> \`/tactical forensic\` — CSI Logic Sheet\n` +
-            `> \`/tactical intercept\` — Target Isolation`,
-          inline: false,
-        },
-        {
-          name: `⚡ Strategic Layer`,
-          value: 
-            `> \`/strategic lockdown\` — Raid Protocols\n` +
-            `> \`/strategic sieve patch\` — L1 Injection\n` +
-            `> \`/strategic policy inject\` — L2 Heuristics`,
-          inline: false,
-        },
-        {
-          name: `👑 Sovereign Layer`,
-          value: 
-            `> \`/avenlo pivot\` — Culture Shift\n` +
-            `> \`/avenlo nuke\` — Safe-State Zero\n` +
-            `> \`/avenlo rehabilitate\` — Legacy Trust`,
+            `> \`/sovereign pivot\` — Shift server culture\n` +
+            `> \`/sovereign nuke\` — Emergency shutdown\n` +
+            `> \`/sovereign rehabilitate\` — Grant legacy trust`,
           inline: false,
         },
         {
           name: `⚙️ Administration`,
           value: 
-            `> \`/admin credits\` — Credit override\n` +
-            `> \`/admin sync\` — Force state sync\n` +
-            `> \`/dashboard create\` — New instance\n` +
-            `> \`/rules\` — Deploy governance`,
+            `> \`/admin credits\` — Manage user credits\n` +
+            `> \`/admin security\` — DEFCON & threat profiles\n` +
+            `> \`/admin audit\` — Recent admin actions\n` +
+            `> \`/rules publish\` — Deploy server rules\n` +
+            `> \`/verify setup\` — Setup verification`,
           inline: false,
         }
       )
       .setFooter({ 
-        text: `AVENLO CORE OS • End-to-End Encrypted Manual`,
+        text: `Avenlo Core • Command Reference`,
         iconURL: AvenloBranding.iconUrl,
       })
       .setTimestamp();
@@ -117,40 +103,40 @@ export const helpCommand: Command = {
       .setPlaceholder('Select a category for more details...')
       .addOptions([
         {
+          label: 'Getting Started',
+          description: 'New here? Start here!',
+          value: 'getting_started',
+          emoji: '✨',
+        },
+        {
           label: 'Projects',
-          description: 'Learn about project management',
+          description: 'Project management commands',
           value: 'projects',
           emoji: '🚀',
         },
         {
-          label: 'Economy',
-          description: 'Learn about the credit system',
+          label: 'Economy & Vault',
+          description: 'Credits, tiers, and perks',
           value: 'economy',
           emoji: '💰',
         },
         {
           label: 'Support & Tickets',
-          description: 'Learn about the ticket system',
+          description: 'Create and manage support tickets',
           value: 'tickets',
           emoji: '🎫',
         },
         {
           label: 'Moderation',
-          description: 'Learn about moderation tools',
+          description: 'User, channel, and AI moderation tools',
           value: 'moderation',
           emoji: '🛡️',
         },
         {
-          label: 'Guardian AI',
-          description: 'Tactical, Strategic & Sovereign commands',
-          value: 'guardian',
-          emoji: '🤖',
-        },
-        {
-          label: 'Getting Started',
-          description: 'New here? Start here!',
-          value: 'getting_started',
-          emoji: '✨',
+          label: 'Administration',
+          description: 'Admin, sovereign, and security commands',
+          value: 'administration',
+          emoji: '⚙️',
         },
       ]);
 

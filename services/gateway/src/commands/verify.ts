@@ -22,7 +22,7 @@ const logger = createLogger('verify-command');
 export const verifyCommand = {
   data: new SlashCommandBuilder()
     .setName('verify')
-    .setDescription('Set up the native verification system in a channel')
+    .setDescription('Set up member verification for your server')
     .addSubcommand((sub) =>
       sub
         .setName('setup')

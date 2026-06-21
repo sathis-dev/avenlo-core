@@ -15,7 +15,7 @@ import { Command } from './index';
 export const adminCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('admin')
-    .setDescription('Administrative commands')
+    .setDescription('Server administration — credits, security, and sync')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommandGroup((group) =>
       group
@@ -212,24 +212,6 @@ async function handleSecurityCommand(interaction: ChatInputCommandInteraction, s
   }
 }
 
-async function handleDeployCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  const panel = interaction.options.getString('panel', true);
-  if (!interaction.channel || !interaction.channel.isTextBased()) {
-    await interaction.reply({ content: '❌ Must be used in a text channel.', ephemeral: true });
-    return;
-  }
-
-  if (panel === 'rules') {
-    const { publishRulesToGuild } = await import('../handlers/RulesHandler');
-    await publishRulesToGuild(interaction.guild!);
-    await interaction.reply({ content: '✅ Rules panel deployed.', ephemeral: true });
-  } else if (panel === 'identity') {
-    const { IdentityHandler } = await import('../handlers/IdentityHandler');
-    await IdentityHandler.deployIdentityPanel(interaction.channel as any);
-    await interaction.reply({ content: '✅ Identity panel deployed.', ephemeral: true });
-  }
-}
-
 async function handleCreditsCommand(
   interaction: ChatInputCommandInteraction,
   action: string
@@ -315,17 +297,21 @@ async function handleCreditsCommand(
 async function handleSyncCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const service = interaction.options.getString('service', true);
 
-  await interaction.reply({
-    content: `${AvenloEmojis.LOADING} Syncing with ${service}... This may take a moment.`,
-    ephemeral: true,
-  });
+  await interaction.deferReply({ ephemeral: true });
 
-  // In production, this would trigger the sync process
-  setTimeout(async () => {
-    await interaction.editReply({
-      content: `${AvenloEmojis.SUCCESS} Sync with ${service} completed!`,
-    });
-  }, 2000);
+  if (service === 'rules' || service === 'all') {
+    const { publishRulesToGuild } = await import('../handlers/RulesHandler');
+    await publishRulesToGuild(interaction.guild!);
+  }
+
+  if (service === 'identity' || service === 'all') {
+    const { IdentityHandler } = await import('../handlers/IdentityHandler');
+    await IdentityHandler.deployIdentityPanel(interaction.channel as any);
+  }
+
+  await interaction.editReply({
+    content: `${AvenloEmojis.SUCCESS} Sync with **${service}** completed.`,
+  });
 }
 
 async function handleAuditCommand(interaction: ChatInputCommandInteraction): Promise<void> {

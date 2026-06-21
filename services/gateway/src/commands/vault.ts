@@ -24,7 +24,7 @@ import { Command } from './index';
 export const vaultCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('vault')
-    .setDescription('View your credits and exchange for perks')
+    .setDescription('Check your credits, view history, and redeem perks')
     .addSubcommand((sub) =>
       sub
         .setName('balance')
