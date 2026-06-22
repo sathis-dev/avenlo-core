@@ -81,13 +81,21 @@ export class SecurityKernel {
     if (message.attachments.size > 0) {
       const fileResult = checkAttachments(message);
       if (fileResult.isMalicious) {
+        // Delete message immediately (critical path — must not fail)
         await message.delete().catch(() => {});
-        await this.threatMatrix.addThreatSignal(userId, guildId, 'MALWARE', 90);
-        await this.ring3.enforce({
-          guildId, userId, targetMessage: message, targetMember: message.member!,
-          action: 'ban', reason: fileResult.reason || 'Malicious file detected',
-          severity: 'critical', sourceRing: 'File Protection'
-        });
+        // Ban user — wrap in try/catch so EventBus init issues don't prevent action
+        try {
+          await this.ring3.enforce({
+            guildId, userId, targetMessage: message, targetMember: message.member!,
+            action: 'ban', reason: fileResult.reason || 'Malicious file detected',
+            severity: 'critical', sourceRing: 'File Protection'
+          });
+        } catch (e) {
+          // Fallback: direct ban if ring3 fails
+          await message.member?.ban({ reason: fileResult.reason || 'Malicious file detected' }).catch(() => {});
+        }
+        // Threat signal is non-critical — don't let it crash the handler
+        this.threatMatrix.addThreatSignal(userId, guildId, 'MALWARE', 90).catch(() => {});
         logger.warn(`🛡 Blocked malicious file from ${message.author.tag}: ${fileResult.reason}`);
         return { actionTaken: true, actionType: 'ban', threatDetected: true, reason: fileResult.reason, sourceRing: 'FileProtection' };
       }
