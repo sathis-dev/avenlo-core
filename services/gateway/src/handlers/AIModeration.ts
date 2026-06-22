@@ -463,33 +463,29 @@ export async function muteUser(
   reason: string,
   moderator?: User
 ): Promise<void> {
+  // Use Discord's timeout feature — throws on permission failure
+  await member.timeout(duration * 60 * 1000, reason);
+  
+  // DM the user (non-critical)
   try {
-    // Use Discord's timeout feature
-    await member.timeout(duration * 60 * 1000, reason);
+    const embed = new EmbedBuilder()
+      .setColor(AvenloColors.RED)
+      .setTitle('🔇 Muted')
+      .setDescription(
+        `You have been muted in **${member.guild.name}**\n\n` +
+        `**Duration:** ${duration} minutes\n` +
+        `**Reason:** ${reason}\n\n` +
+        `You will be automatically unmuted when the timeout expires.`
+      )
+      .setFooter({ text: AvenloBranding.footer })
+      .setTimestamp();
     
-    // DM the user
-    try {
-      const embed = new EmbedBuilder()
-        .setColor(AvenloColors.RED)
-        .setTitle('🔇 Muted')
-        .setDescription(
-          `You have been muted in **${member.guild.name}**\n\n` +
-          `**Duration:** ${duration} minutes\n` +
-          `**Reason:** ${reason}\n\n` +
-          `You will be automatically unmuted when the timeout expires.`
-        )
-        .setFooter({ text: AvenloBranding.footer })
-        .setTimestamp();
-      
-      await member.send({ embeds: [embed] });
-    } catch (err) {
-      logger.debug('Could not DM user mute notification');
-    }
-    
-    logger.info(`🔇 Muted ${member.user.tag} for ${duration} minutes - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to mute user:', error);
+    await member.send({ embeds: [embed] });
+  } catch (err) {
+    logger.debug('Could not DM user mute notification');
   }
+  
+  logger.info(`🔇 Muted ${member.user.tag} for ${duration} minutes - ${reason}`);
 }
 
 export async function kickUser(
@@ -497,30 +493,27 @@ export async function kickUser(
   reason: string,
   moderator?: User
 ): Promise<void> {
+  // DM before kick (non-critical)
   try {
-    // DM before kick
-    try {
-      const embed = new EmbedBuilder()
-        .setColor(AvenloColors.RED)
-        .setTitle('👢 Kicked')
-        .setDescription(
-          `You have been kicked from **${member.guild.name}**\n\n` +
-          `**Reason:** ${reason}\n\n` +
-          `You may rejoin if you receive a new invite, but please follow the rules.`
-        )
-        .setFooter({ text: AvenloBranding.footer })
-        .setTimestamp();
-      
-      await member.send({ embeds: [embed] });
-    } catch (err) {
-      logger.debug('Could not DM user kick notification');
-    }
+    const embed = new EmbedBuilder()
+      .setColor(AvenloColors.RED)
+      .setTitle('👢 Kicked')
+      .setDescription(
+        `You have been kicked from **${member.guild.name}**\n\n` +
+        `**Reason:** ${reason}\n\n` +
+        `You may rejoin if you receive a new invite, but please follow the rules.`
+      )
+      .setFooter({ text: AvenloBranding.footer })
+      .setTimestamp();
     
-    await member.kick(reason);
-    logger.info(`👢 Kicked ${member.user.tag} - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to kick user:', error);
+    await member.send({ embeds: [embed] });
+  } catch (err) {
+    logger.debug('Could not DM user kick notification');
   }
+  
+  // Throws on permission failure
+  await member.kick(reason);
+  logger.info(`👢 Kicked ${member.user.tag} - ${reason}`);
 }
 
 export async function banUser(
@@ -529,39 +522,36 @@ export async function banUser(
   deleteMessageDays: number = 1,
   moderator?: User
 ): Promise<void> {
-  try {
-    const guild = member.guild;
-    const userId = member.id;
-    
-    // Try to DM before ban (if GuildMember)
-    if ('send' in member) {
-      try {
-        const embed = new EmbedBuilder()
-          .setColor(AvenloColors.RED)
-          .setTitle('🔨 Banned')
-          .setDescription(
-            `You have been banned from **${guild.name}**\n\n` +
-            `**Reason:** ${reason}\n\n` +
-            `This action is permanent unless appealed.`
-          )
-          .setFooter({ text: AvenloBranding.footer })
-          .setTimestamp();
-        
-        await (member as GuildMember).send({ embeds: [embed] });
-      } catch (err) {
-        logger.debug('Could not DM user ban notification');
-      }
+  const guild = member.guild;
+  const userId = member.id;
+  
+  // Try to DM before ban (if GuildMember, non-critical)
+  if ('send' in member) {
+    try {
+      const embed = new EmbedBuilder()
+        .setColor(AvenloColors.RED)
+        .setTitle('🔨 Banned')
+        .setDescription(
+          `You have been banned from **${guild.name}**\n\n` +
+          `**Reason:** ${reason}\n\n` +
+          `This action is permanent unless appealed.`
+        )
+        .setFooter({ text: AvenloBranding.footer })
+        .setTimestamp();
+      
+      await (member as GuildMember).send({ embeds: [embed] });
+    } catch (err) {
+      logger.debug('Could not DM user ban notification');
     }
-    
-    await guild.members.ban(userId, { 
-      reason,
-      deleteMessageSeconds: deleteMessageDays * 24 * 60 * 60,
-    });
-    
-    logger.info(`🔨 Banned user ${userId} - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to ban user:', error);
   }
+  
+  // Throws on permission failure
+  await guild.members.ban(userId, { 
+    reason,
+    deleteMessageSeconds: deleteMessageDays * 24 * 60 * 60,
+  });
+  
+  logger.info(`🔨 Banned user ${userId} - ${reason}`);
 }
 
 // ====================================
@@ -678,24 +668,28 @@ async function handleViolation(message: Message, result: ModerationResult): Prom
   const warningData = userWarnings.get(`${guild.id}:${member.id}`);
   const warningCount = warningData?.count || 0;
   
-  if (result.score >= thresholds.ban) {
-    await banUser(member, result.reason);
-  } else if (result.score >= thresholds.kick) {
-    if (warningCount >= 3) {
-      await kickUser(member, result.reason);
-    } else {
-      // Mute instead for first-time severe violations
-      const duration = muteDurations.third;
+  try {
+    if (result.score >= thresholds.ban) {
+      await banUser(member, result.reason);
+    } else if (result.score >= thresholds.kick) {
+      if (warningCount >= 3) {
+        await kickUser(member, result.reason);
+      } else {
+        // Mute instead for first-time severe violations
+        const duration = muteDurations.third;
+        await muteUser(member, duration, result.reason);
+      }
+    } else if (result.score >= thresholds.mute) {
+      const duration = warningCount === 0 ? muteDurations.first :
+                       warningCount === 1 ? muteDurations.second :
+                       warningCount === 2 ? muteDurations.third :
+                       muteDurations.fourth;
       await muteUser(member, duration, result.reason);
+    } else if (result.score >= thresholds.warn) {
+      await warnUser(member, result.reason);
     }
-  } else if (result.score >= thresholds.mute) {
-    const duration = warningCount === 0 ? muteDurations.first :
-                     warningCount === 1 ? muteDurations.second :
-                     warningCount === 2 ? muteDurations.third :
-                     muteDurations.fourth;
-    await muteUser(member, duration, result.reason);
-  } else if (result.score >= thresholds.warn) {
-    await warnUser(member, result.reason);
+  } catch (error) {
+    logger.error(`Failed to execute moderation action on ${member.user.tag}:`, error);
   }
 }
 

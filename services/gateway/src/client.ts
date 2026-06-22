@@ -389,7 +389,17 @@ export class GatewayClient extends Client {
       lastCommandAt: new Date().toISOString(),
     });
 
-    await command.execute(interaction);
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      logger.error(`Command /${interaction.commandName} failed:`, error);
+      const msg = '❌ Something went wrong executing that command. The bot may lack permissions in this server.';
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: msg, ephemeral: true }).catch(() => {});
+      } else {
+        await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+      }
+    }
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {

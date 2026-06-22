@@ -398,7 +398,12 @@ export const modCommand: Command = {
             return;
           }
           
-          await AIModerationHandlers.muteUser(user, duration, reason, interaction.user);
+          try {
+            await AIModerationHandlers.muteUser(user, duration, reason, interaction.user);
+          } catch (err) {
+            await interaction.reply({ content: '❌ Failed to mute user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
+            return;
+          }
           
           const embed = new EmbedBuilder()
             .setColor(AvenloColors.RED)
@@ -424,7 +429,12 @@ export const modCommand: Command = {
             return;
           }
           
-          await user.timeout(null, 'Unmuted by moderator');
+          try {
+            await user.timeout(null, 'Unmuted by moderator');
+          } catch (err) {
+            await interaction.reply({ content: '❌ Failed to unmute user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
+            return;
+          }
           
           await interaction.reply({
             embeds: [
@@ -446,11 +456,16 @@ export const modCommand: Command = {
           }
           
           if (!user.kickable) {
-            await interaction.reply({ content: '❌ Cannot kick this user.', ephemeral: true });
+            await interaction.reply({ content: '❌ Cannot kick this user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
             return;
           }
           
-          await AIModerationHandlers.kickUser(user, reason, interaction.user);
+          try {
+            await AIModerationHandlers.kickUser(user, reason, interaction.user);
+          } catch (err) {
+            await interaction.reply({ content: '❌ Failed to kick user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
+            return;
+          }
           
           const embed = new EmbedBuilder()
             .setColor(AvenloColors.RED)
@@ -475,14 +490,19 @@ export const modCommand: Command = {
           const targetMember = await guild.members.fetch(user.id).catch(() => null);
           
           if (targetMember && !targetMember.bannable) {
-            await interaction.reply({ content: '❌ Cannot ban this user.', ephemeral: true });
+            await interaction.reply({ content: '❌ Cannot ban this user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
             return;
           }
           
-          await guild.members.ban(user.id, {
-            reason: `${reason} | By: ${interaction.user.tag}`,
-            deleteMessageSeconds: deleteDays * 24 * 60 * 60,
-          });
+          try {
+            await guild.members.ban(user.id, {
+              reason: `${reason} | By: ${interaction.user.tag}`,
+              deleteMessageSeconds: deleteDays * 24 * 60 * 60,
+            });
+          } catch (err) {
+            await interaction.reply({ content: '❌ Failed to ban user — bot lacks permission. Move my role above theirs in Server Settings → Roles.', ephemeral: true });
+            return;
+          }
           
           const embed = new EmbedBuilder()
             .setColor(AvenloColors.RED)
