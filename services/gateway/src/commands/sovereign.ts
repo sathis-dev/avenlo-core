@@ -10,9 +10,9 @@ import { AvenloColors, getRedisClient } from '@avenlo/shared';
 
 export const sovereignCommand: Command = {
     data: new SlashCommandBuilder()
-        .setName('avenlo')
-        .setDescription('Sovereign Control: System Core Directives')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // Technically Owner only, checked in execute
+        .setName('sovereign')
+        .setDescription('Owner-only governance and emergency controls')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addSubcommand(sub =>
             sub.setName('pivot')
                 .setDescription('Shift global Avenlo Vibe/Culture')
@@ -29,13 +29,9 @@ export const sovereignCommand: Command = {
         ) as any,
 
     async execute(interaction: ChatInputCommandInteraction) {
-        // Strict Owner Check
-        if (interaction.user.id !== process.env.DISCORD_OWNER_ID && interaction.user.id !== '162208156637855744') { // Fallback ID from earlier context or just check owner
-            // Actually, verify via guild owner if env not set
-            if (interaction.guild && interaction.guild.ownerId !== interaction.user.id) {
-                await interaction.reply({ content: '👑 Sovereign Access Required.', ephemeral: true });
-                return;
-            }
+        if (!interaction.guild || interaction.guild.ownerId !== interaction.user.id) {
+            await interaction.reply({ content: '👑 Sovereign access is restricted to the server owner.', ephemeral: true });
+            return;
         }
 
         const subcommand = interaction.options.getSubcommand();

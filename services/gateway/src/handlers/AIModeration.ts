@@ -269,6 +269,92 @@ function performBasicAnalysis(content: string): ModerationResult {
 }
 
 // ====================================
+// MALICIOUS FILE DETECTION
+// ====================================
+
+// Dangerous executable extensions — always blocked
+const DANGEROUS_EXTENSIONS = new Set([
+  '.exe', '.msi', '.bat', '.cmd', '.scr', '.pif', '.com',
+  '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc',
+  '.ps1', '.ps2', '.psc1', '.msh', '.msh1', '.msh2',
+  '.inf', '.reg', '.dll', '.cpl', '.hta', '.lnk',
+]);
+
+// Archive extensions — blocked when combined with suspicious names
+const ARCHIVE_EXTENSIONS = new Set([
+  '.zip', '.rar', '.7z', '.tar', '.gz', '.iso',
+]);
+
+// Suspicious filename patterns (case-insensitive)
+const SUSPICIOUS_PATTERNS = [
+  /fps\s*boost/i,
+  /free\s*nitro/i,
+  /discord\s*nitro/i,
+  /nitro\s*gen/i,
+  /hack/i,
+  /crack/i,
+  /keygen/i,
+  /cheat/i,
+  /exploit/i,
+  /token\s*(grab|log|steal)/i,
+  /rat\b/i,
+  /stealer/i,
+  /grabber/i,
+  /selfbot/i,
+  /nuke/i,
+  /boot(er|ing)/i,
+  /ddos/i,
+  /ip\s*(grab|log|pull)/i,
+  /password\s*(crack|hack|steal)/i,
+  /spy(ware)?/i,
+  /trojan/i,
+  /virus/i,
+  /malware/i,
+  /ransomware/i,
+  /crypto\s*min/i,
+  /free\s*(vbucks|robux|gems|coins)/i,
+];
+
+export function checkAttachments(message: Message): { isMalicious: boolean; reason?: string } {
+  if (!message.attachments.size) return { isMalicious: false };
+
+  for (const [_, attachment] of message.attachments) {
+    const name = attachment.name?.toLowerCase() || '';
+    const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
+
+    // Block all dangerous executable extensions
+    if (DANGEROUS_EXTENSIONS.has(ext)) {
+      return { isMalicious: true, reason: `Blocked dangerous file type: \`${attachment.name}\`` };
+    }
+
+    // Block archives with suspicious names
+    if (ARCHIVE_EXTENSIONS.has(ext)) {
+      for (const pattern of SUSPICIOUS_PATTERNS) {
+        if (pattern.test(name) || pattern.test(message.content)) {
+          return { isMalicious: true, reason: `Suspicious archive blocked: \`${attachment.name}\`` };
+        }
+      }
+    }
+  }
+
+  // Also check message text for suspicious download links
+  const urlPatterns = [
+    /(?:mega\.nz|mediafire|anonfiles|gofile|dropmefiles)/i,
+    /(?:bit\.ly|tinyurl|shorturl).*(?:download|file|exe)/i,
+  ];
+
+  if (message.attachments.size > 0) {
+    for (const pattern of urlPatterns) {
+      if (pattern.test(message.content)) {
+        return { isMalicious: true, reason: 'Suspicious download link with attachment' };
+      }
+    }
+  }
+
+  return { isMalicious: false };
+}
+
+// ====================================
 // SPAM DETECTION
 // ====================================
 
@@ -463,33 +549,29 @@ export async function muteUser(
   reason: string,
   moderator?: User
 ): Promise<void> {
+  // Use Discord's timeout feature — throws on permission failure
+  await member.timeout(duration * 60 * 1000, reason);
+  
+  // DM the user (non-critical)
   try {
-    // Use Discord's timeout feature
-    await member.timeout(duration * 60 * 1000, reason);
+    const embed = new EmbedBuilder()
+      .setColor(AvenloColors.RED)
+      .setTitle('🔇 Muted')
+      .setDescription(
+        `You have been muted in **${member.guild.name}**\n\n` +
+        `**Duration:** ${duration} minutes\n` +
+        `**Reason:** ${reason}\n\n` +
+        `You will be automatically unmuted when the timeout expires.`
+      )
+      .setFooter({ text: AvenloBranding.footer })
+      .setTimestamp();
     
-    // DM the user
-    try {
-      const embed = new EmbedBuilder()
-        .setColor(AvenloColors.RED)
-        .setTitle('🔇 Muted')
-        .setDescription(
-          `You have been muted in **${member.guild.name}**\n\n` +
-          `**Duration:** ${duration} minutes\n` +
-          `**Reason:** ${reason}\n\n` +
-          `You will be automatically unmuted when the timeout expires.`
-        )
-        .setFooter({ text: AvenloBranding.footer })
-        .setTimestamp();
-      
-      await member.send({ embeds: [embed] });
-    } catch (err) {
-      logger.debug('Could not DM user mute notification');
-    }
-    
-    logger.info(`🔇 Muted ${member.user.tag} for ${duration} minutes - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to mute user:', error);
+    await member.send({ embeds: [embed] });
+  } catch (err) {
+    logger.debug('Could not DM user mute notification');
   }
+  
+  logger.info(`🔇 Muted ${member.user.tag} for ${duration} minutes - ${reason}`);
 }
 
 export async function kickUser(
@@ -497,30 +579,27 @@ export async function kickUser(
   reason: string,
   moderator?: User
 ): Promise<void> {
+  // DM before kick (non-critical)
   try {
-    // DM before kick
-    try {
-      const embed = new EmbedBuilder()
-        .setColor(AvenloColors.RED)
-        .setTitle('👢 Kicked')
-        .setDescription(
-          `You have been kicked from **${member.guild.name}**\n\n` +
-          `**Reason:** ${reason}\n\n` +
-          `You may rejoin if you receive a new invite, but please follow the rules.`
-        )
-        .setFooter({ text: AvenloBranding.footer })
-        .setTimestamp();
-      
-      await member.send({ embeds: [embed] });
-    } catch (err) {
-      logger.debug('Could not DM user kick notification');
-    }
+    const embed = new EmbedBuilder()
+      .setColor(AvenloColors.RED)
+      .setTitle('👢 Kicked')
+      .setDescription(
+        `You have been kicked from **${member.guild.name}**\n\n` +
+        `**Reason:** ${reason}\n\n` +
+        `You may rejoin if you receive a new invite, but please follow the rules.`
+      )
+      .setFooter({ text: AvenloBranding.footer })
+      .setTimestamp();
     
-    await member.kick(reason);
-    logger.info(`👢 Kicked ${member.user.tag} - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to kick user:', error);
+    await member.send({ embeds: [embed] });
+  } catch (err) {
+    logger.debug('Could not DM user kick notification');
   }
+  
+  // Throws on permission failure
+  await member.kick(reason);
+  logger.info(`👢 Kicked ${member.user.tag} - ${reason}`);
 }
 
 export async function banUser(
@@ -529,39 +608,36 @@ export async function banUser(
   deleteMessageDays: number = 1,
   moderator?: User
 ): Promise<void> {
-  try {
-    const guild = member.guild;
-    const userId = member.id;
-    
-    // Try to DM before ban (if GuildMember)
-    if ('send' in member) {
-      try {
-        const embed = new EmbedBuilder()
-          .setColor(AvenloColors.RED)
-          .setTitle('🔨 Banned')
-          .setDescription(
-            `You have been banned from **${guild.name}**\n\n` +
-            `**Reason:** ${reason}\n\n` +
-            `This action is permanent unless appealed.`
-          )
-          .setFooter({ text: AvenloBranding.footer })
-          .setTimestamp();
-        
-        await (member as GuildMember).send({ embeds: [embed] });
-      } catch (err) {
-        logger.debug('Could not DM user ban notification');
-      }
+  const guild = member.guild;
+  const userId = member.id;
+  
+  // Try to DM before ban (if GuildMember, non-critical)
+  if ('send' in member) {
+    try {
+      const embed = new EmbedBuilder()
+        .setColor(AvenloColors.RED)
+        .setTitle('🔨 Banned')
+        .setDescription(
+          `You have been banned from **${guild.name}**\n\n` +
+          `**Reason:** ${reason}\n\n` +
+          `This action is permanent unless appealed.`
+        )
+        .setFooter({ text: AvenloBranding.footer })
+        .setTimestamp();
+      
+      await (member as GuildMember).send({ embeds: [embed] });
+    } catch (err) {
+      logger.debug('Could not DM user ban notification');
     }
-    
-    await guild.members.ban(userId, { 
-      reason,
-      deleteMessageSeconds: deleteMessageDays * 24 * 60 * 60,
-    });
-    
-    logger.info(`🔨 Banned user ${userId} - ${reason}`);
-  } catch (error) {
-    logger.error('Failed to ban user:', error);
   }
+  
+  // Throws on permission failure
+  await guild.members.ban(userId, { 
+    reason,
+    deleteMessageSeconds: deleteMessageDays * 24 * 60 * 60,
+  });
+  
+  logger.info(`🔨 Banned user ${userId} - ${reason}`);
 }
 
 // ====================================
@@ -583,7 +659,22 @@ export async function handleMessage(message: Message): Promise<void> {
     return;
   }
   
-  // Quick spam check first
+  // Malicious file check first (highest priority)
+  const fileResult = checkAttachments(message);
+  if (fileResult.isMalicious) {
+    await handleViolation(message, {
+      shouldModerate: true,
+      severity: 'critical',
+      score: 90,
+      categories: { toxicity: 0, spam: 0, harassment: 0, hate_speech: 0, sexual: 0, violence: 0, self_harm: 0, illegal: 90 },
+      reason: fileResult.reason || 'Malicious file detected',
+      suggestedAction: 'ban',
+      aiExplanation: `Automatic file protection: ${fileResult.reason}. Sharing executable/malicious files endangers all members.`,
+    });
+    return;
+  }
+
+  // Quick spam check
   const spamResult = checkSpam(message);
   if (spamResult.isSpam) {
     await handleViolation(message, {
@@ -678,24 +769,28 @@ async function handleViolation(message: Message, result: ModerationResult): Prom
   const warningData = userWarnings.get(`${guild.id}:${member.id}`);
   const warningCount = warningData?.count || 0;
   
-  if (result.score >= thresholds.ban) {
-    await banUser(member, result.reason);
-  } else if (result.score >= thresholds.kick) {
-    if (warningCount >= 3) {
-      await kickUser(member, result.reason);
-    } else {
-      // Mute instead for first-time severe violations
-      const duration = muteDurations.third;
+  try {
+    if (result.score >= thresholds.ban) {
+      await banUser(member, result.reason);
+    } else if (result.score >= thresholds.kick) {
+      if (warningCount >= 3) {
+        await kickUser(member, result.reason);
+      } else {
+        // Mute instead for first-time severe violations
+        const duration = muteDurations.third;
+        await muteUser(member, duration, result.reason);
+      }
+    } else if (result.score >= thresholds.mute) {
+      const duration = warningCount === 0 ? muteDurations.first :
+                       warningCount === 1 ? muteDurations.second :
+                       warningCount === 2 ? muteDurations.third :
+                       muteDurations.fourth;
       await muteUser(member, duration, result.reason);
+    } else if (result.score >= thresholds.warn) {
+      await warnUser(member, result.reason);
     }
-  } else if (result.score >= thresholds.mute) {
-    const duration = warningCount === 0 ? muteDurations.first :
-                     warningCount === 1 ? muteDurations.second :
-                     warningCount === 2 ? muteDurations.third :
-                     muteDurations.fourth;
-    await muteUser(member, duration, result.reason);
-  } else if (result.score >= thresholds.warn) {
-    await warnUser(member, result.reason);
+  } catch (error) {
+    logger.error(`Failed to execute moderation action on ${member.user.tag}:`, error);
   }
 }
 
@@ -741,6 +836,7 @@ export const AIModerationHandlers = {
   handleMemberJoinRaidCheck,
   analyzeContent,
   checkSpam,
+  checkAttachments,
   checkRaid,
   activateLockdown,
   deactivateLockdown,

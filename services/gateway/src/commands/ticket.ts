@@ -33,7 +33,7 @@ import { TicketHandlers } from '../handlers/TicketHandler';
 export const ticketCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('ticket')
-    .setDescription('Manage support tickets')
+    .setDescription('Create, manage, and resolve support tickets')
     .addSubcommand((sub) =>
       sub
         .setName('panel')

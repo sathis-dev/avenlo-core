@@ -24,7 +24,7 @@ import { Command } from './index';
 export const dashboardCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('dashboard')
-    .setDescription('View and manage live project dashboards')
+    .setDescription('View and manage project dashboards')
     .addSubcommand((sub) =>
       sub
         .setName('view')
@@ -266,11 +266,17 @@ async function handleCreateDashboard(interaction: ChatInputCommandInteraction): 
 }
 
 async function handleRefreshDashboard(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.reply({
-    content: `${AvenloEmojis.LOADING} Refreshing dashboard... This may take a moment.`,
-    ephemeral: true,
-  });
+  await interaction.deferReply({ ephemeral: true });
 
-  // In production, this would emit an event to the Pulse service
-  // to trigger a refresh
+  const dashboard = await Dashboard.findOne({ guildId: interaction.guildId! }).sort({ lastUpdatedAt: -1 });
+
+  if (!dashboard) {
+    await interaction.editReply({ content: `${AvenloEmojis.WARNING} No dashboard found to refresh.` });
+    return;
+  }
+
+  dashboard.lastUpdatedAt = new Date();
+  await dashboard.save();
+
+  await interaction.editReply({ content: `${AvenloEmojis.SUCCESS} Dashboard refreshed.` });
 }
