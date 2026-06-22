@@ -280,7 +280,7 @@ const DANGEROUS_EXTENSIONS = new Set([
   '.inf', '.reg', '.dll', '.cpl', '.hta', '.lnk',
 ]);
 
-// Archive extensions — blocked when combined with suspicious names
+// Archive extensions — blocked for non-admin users
 const ARCHIVE_EXTENSIONS = new Set([
   '.zip', '.rar', '.7z', '.tar', '.gz', '.iso',
 ]);
@@ -318,22 +318,20 @@ const SUSPICIOUS_PATTERNS = [
 export function checkAttachments(message: Message): { isMalicious: boolean; reason?: string } {
   if (!message.attachments.size) return { isMalicious: false };
 
+  const isAdmin = message.member?.permissions.has(PermissionFlagsBits.Administrator) ?? false;
+
   for (const [_, attachment] of message.attachments) {
     const name = attachment.name?.toLowerCase() || '';
     const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
 
-    // Block all dangerous executable extensions
+    // Block all dangerous executable extensions for everyone
     if (DANGEROUS_EXTENSIONS.has(ext)) {
       return { isMalicious: true, reason: `Blocked dangerous file type: \`${attachment.name}\`` };
     }
 
-    // Block archives with suspicious names
-    if (ARCHIVE_EXTENSIONS.has(ext)) {
-      for (const pattern of SUSPICIOUS_PATTERNS) {
-        if (pattern.test(name) || pattern.test(message.content)) {
-          return { isMalicious: true, reason: `Suspicious archive blocked: \`${attachment.name}\`` };
-        }
-      }
+    // Block all archive uploads from non-admin users
+    if (ARCHIVE_EXTENSIONS.has(ext) && !isAdmin) {
+      return { isMalicious: true, reason: `Archive file blocked: \`${attachment.name}\` — only admins can upload archives` };
     }
   }
 
