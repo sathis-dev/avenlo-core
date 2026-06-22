@@ -269,6 +269,92 @@ function performBasicAnalysis(content: string): ModerationResult {
 }
 
 // ====================================
+// MALICIOUS FILE DETECTION
+// ====================================
+
+// Dangerous executable extensions — always blocked
+const DANGEROUS_EXTENSIONS = new Set([
+  '.exe', '.msi', '.bat', '.cmd', '.scr', '.pif', '.com',
+  '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc',
+  '.ps1', '.ps2', '.psc1', '.msh', '.msh1', '.msh2',
+  '.inf', '.reg', '.dll', '.cpl', '.hta', '.lnk',
+]);
+
+// Archive extensions — blocked when combined with suspicious names
+const ARCHIVE_EXTENSIONS = new Set([
+  '.zip', '.rar', '.7z', '.tar', '.gz', '.iso',
+]);
+
+// Suspicious filename patterns (case-insensitive)
+const SUSPICIOUS_PATTERNS = [
+  /fps\s*boost/i,
+  /free\s*nitro/i,
+  /discord\s*nitro/i,
+  /nitro\s*gen/i,
+  /hack/i,
+  /crack/i,
+  /keygen/i,
+  /cheat/i,
+  /exploit/i,
+  /token\s*(grab|log|steal)/i,
+  /rat\b/i,
+  /stealer/i,
+  /grabber/i,
+  /selfbot/i,
+  /nuke/i,
+  /boot(er|ing)/i,
+  /ddos/i,
+  /ip\s*(grab|log|pull)/i,
+  /password\s*(crack|hack|steal)/i,
+  /spy(ware)?/i,
+  /trojan/i,
+  /virus/i,
+  /malware/i,
+  /ransomware/i,
+  /crypto\s*min/i,
+  /free\s*(vbucks|robux|gems|coins)/i,
+];
+
+export function checkAttachments(message: Message): { isMalicious: boolean; reason?: string } {
+  if (!message.attachments.size) return { isMalicious: false };
+
+  for (const [_, attachment] of message.attachments) {
+    const name = attachment.name?.toLowerCase() || '';
+    const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
+
+    // Block all dangerous executable extensions
+    if (DANGEROUS_EXTENSIONS.has(ext)) {
+      return { isMalicious: true, reason: `Blocked dangerous file type: \`${attachment.name}\`` };
+    }
+
+    // Block archives with suspicious names
+    if (ARCHIVE_EXTENSIONS.has(ext)) {
+      for (const pattern of SUSPICIOUS_PATTERNS) {
+        if (pattern.test(name) || pattern.test(message.content)) {
+          return { isMalicious: true, reason: `Suspicious archive blocked: \`${attachment.name}\`` };
+        }
+      }
+    }
+  }
+
+  // Also check message text for suspicious download links
+  const urlPatterns = [
+    /(?:mega\.nz|mediafire|anonfiles|gofile|dropmefiles)/i,
+    /(?:bit\.ly|tinyurl|shorturl).*(?:download|file|exe)/i,
+  ];
+
+  if (message.attachments.size > 0) {
+    for (const pattern of urlPatterns) {
+      if (pattern.test(message.content)) {
+        return { isMalicious: true, reason: 'Suspicious download link with attachment' };
+      }
+    }
+  }
+
+  return { isMalicious: false };
+}
+
+// ====================================
 // SPAM DETECTION
 // ====================================
 
@@ -573,7 +659,22 @@ export async function handleMessage(message: Message): Promise<void> {
     return;
   }
   
-  // Quick spam check first
+  // Malicious file check first (highest priority)
+  const fileResult = checkAttachments(message);
+  if (fileResult.isMalicious) {
+    await handleViolation(message, {
+      shouldModerate: true,
+      severity: 'critical',
+      score: 90,
+      categories: { toxicity: 0, spam: 0, harassment: 0, hate_speech: 0, sexual: 0, violence: 0, self_harm: 0, illegal: 90 },
+      reason: fileResult.reason || 'Malicious file detected',
+      suggestedAction: 'ban',
+      aiExplanation: `Automatic file protection: ${fileResult.reason}. Sharing executable/malicious files endangers all members.`,
+    });
+    return;
+  }
+
+  // Quick spam check
   const spamResult = checkSpam(message);
   if (spamResult.isSpam) {
     await handleViolation(message, {
@@ -735,6 +836,7 @@ export const AIModerationHandlers = {
   handleMemberJoinRaidCheck,
   analyzeContent,
   checkSpam,
+  checkAttachments,
   checkRaid,
   activateLockdown,
   deactivateLockdown,
