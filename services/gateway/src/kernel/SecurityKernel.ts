@@ -3,7 +3,7 @@
 // Central Orchestrator for Multi-Ring Defense
 // ====================================
 
-import { Message, GuildMember } from 'discord.js';
+import { Message, GuildMember, PermissionFlagsBits } from 'discord.js';
 import { createLogger } from '@avenlo/shared';
 
 import { DefconController, DefconLevel } from './DefconController';
@@ -14,6 +14,7 @@ import { Ring0Sieve } from './rings/Ring0Sieve';
 import { Ring1Behavioral } from './rings/Ring1Behavioral';
 import { Ring2AI } from './rings/Ring2AI';
 import { Ring3Enforcer } from './rings/Ring3Enforcer';
+import { checkAttachments } from '../handlers/AIModeration';
 
 const logger = createLogger('security-kernel');
 
@@ -75,6 +76,22 @@ export class SecurityKernel {
 
     const guildId = message.guild.id;
     const userId = message.author.id;
+
+    // --- FILE ATTACHMENT CHECK (highest priority, before all rings) ---
+    if (message.attachments.size > 0) {
+      const fileResult = checkAttachments(message);
+      if (fileResult.isMalicious) {
+        await message.delete().catch(() => {});
+        await this.threatMatrix.addThreatSignal(userId, guildId, 'MALWARE', 90);
+        await this.ring3.enforce({
+          guildId, userId, targetMessage: message, targetMember: message.member!,
+          action: 'ban', reason: fileResult.reason || 'Malicious file detected',
+          severity: 'critical', sourceRing: 'File Protection'
+        });
+        logger.warn(`🛡 Blocked malicious file from ${message.author.tag}: ${fileResult.reason}`);
+        return { actionTaken: true, actionType: 'ban', threatDetected: true, reason: fileResult.reason, sourceRing: 'FileProtection' };
+      }
+    }
 
     // Fast-path: Check DEFCON. If DEFCON 1, we might block all messages globally.
     const defcon = await this.defconController.getDefconLevel(guildId);
