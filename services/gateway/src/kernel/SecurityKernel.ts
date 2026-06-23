@@ -83,21 +83,21 @@ export class SecurityKernel {
       if (fileResult.isMalicious) {
         // Delete message immediately (critical path — must not fail)
         await message.delete().catch(() => {});
-        // Ban user — wrap in try/catch so EventBus init issues don't prevent action
+        // Timeout user — wrap in try/catch so EventBus init issues don't prevent action
         try {
           await this.ring3.enforce({
             guildId, userId, targetMessage: message, targetMember: message.member!,
-            action: 'ban', reason: fileResult.reason || 'Malicious file detected',
-            severity: 'critical', sourceRing: 'File Protection'
+            action: 'timeout', reason: fileResult.reason || 'Malicious file detected',
+            severity: 'high', sourceRing: 'File Protection'
           });
         } catch (e) {
-          // Fallback: direct ban if ring3 fails
-          await message.member?.ban({ reason: fileResult.reason || 'Malicious file detected' }).catch(() => {});
+          // Fallback: direct timeout if ring3 fails (10 minutes)
+          await message.member?.timeout(10 * 60 * 1000, fileResult.reason || 'Malicious file detected').catch(() => {});
         }
         // Threat signal is non-critical — don't let it crash the handler
         this.threatMatrix.addThreatSignal(userId, guildId, 'MALWARE', 90).catch(() => {});
         logger.warn(`🛡 Blocked malicious file from ${message.author.tag}: ${fileResult.reason}`);
-        return { actionTaken: true, actionType: 'ban', threatDetected: true, reason: fileResult.reason, sourceRing: 'FileProtection' };
+        return { actionTaken: true, actionType: 'timeout', threatDetected: true, reason: fileResult.reason, sourceRing: 'FileProtection' };
       }
     }
 
